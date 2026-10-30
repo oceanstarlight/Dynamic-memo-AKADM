@@ -3,12 +3,13 @@ import { createFirestoreStore, createMemoryStore } from './lib/store';
 import { DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings } from './lib/settings';
 import { analyzeMemo, makeStudySet, GEMINI_MODEL } from './lib/gemini';
 import { findCategoryByName, matchExistingCategory, normalizeName, pickColor } from './lib/categories';
-import { hashText } from './lib/text';
+import { hashText, plainToHtml } from './lib/text';
 
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
 const MIN_AI_LENGTH = 15;
+const TRASH_DAYS = 30;
 
 export function AppProvider({ session, onSignOut, children }) {
   const isGuest = session.kind === 'guest';
@@ -17,12 +18,16 @@ export function AppProvider({ session, onSignOut, children }) {
     [isGuest, session.user?.uid],
   );
 
-  const [memos, setMemos] = useState([]);
+  const [allMemos, setAllMemos] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loaded, setLoaded] = useState({ memos: false, cats: false });
   const [settings, setSettings] = useState(loadLocalSettings);
   const [busy, setBusy] = useState({}); // { [memoId]: 'analyze' | 'study' }
   const [toasts, setToasts] = useState([]);
+
+  // 휴지통에 있는 메모는 목록·검색·분류 어디에도 나오지 않는다
+  const memos = useMemo(() => allMemos.filter((m) => !m.deletedAt), [allMemos]);
+  const trashed = useMemo(() => allMemos.filter((m) => m.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt), [allMemos]);
 
   // 콜백 안에서 최신 목록을 읽기 위한 ref
   const catsRef = useRef(categories);
@@ -36,7 +41,7 @@ export function AppProvider({ session, onSignOut, children }) {
       toast(`동기화 오류: ${error.message}`, { tone: 'error' });
     };
     const offMemos = store.subscribeMemos((list) => {
-      setMemos(list);
+      setAllMemos(list);
       setLoaded((l) => ({ ...l, memos: true }));
     }, onError);
     const offCats = store.subscribeCategories((list) => {
@@ -49,6 +54,15 @@ export function AppProvider({ session, onSignOut, children }) {
     return () => { offMemos(); offCats(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
+
+  // 휴지통에서 30일 지난 메모는 접속할 때 영구 삭제
+  const purgedRef = useRef(false);
+  useEffect(() => {
+    if (!loaded.memos || purgedRef.current) return;
+    purgedRef.current = true;
+    const limit = Date.now() - TRASH_DAYS * 86400000;
+    allMemos.filter((m) => m.deletedAt && m.deletedAt < limit).forEach((m) => store.deleteMemo(m.id).catch(() => {}));
+  }, [loaded.memos, allMemos, store]);
 
   // ---------------- 토스트 ----------------
   const toast = useCallback((message, { tone = 'default', action, duration = 4200 } = {}) => {
@@ -196,12 +210,43 @@ export function AppProvider({ session, onSignOut, children }) {
     }
   }, [store, toast]);
 
+  // ---------------- 휴지통 · 고정 ----------------
+  const removeMemo = useCallback(async (memoId) => {
+    if (!settings.useTrash) {
+      await store.deleteMemo(memoId);
+      return;
+    }
+    await store.patchMemo(memoId, { deletedAt: Date.now(), pinned: false });
+    toast('휴지통으로 옮겼어요', { action: { label: '되돌리기', onClick: () => store.patchMemo(memoId, { deletedAt: undefined }) } });
+  }, [settings.useTrash, store, toast]);
+
+  const restoreMemo = useCallback((memoId) => store.patchMemo(memoId, { deletedAt: undefined }), [store]);
+  const togglePin = useCallback((memo) => store.patchMemo(memo.id, { pinned: !memo.pinned }), [store]);
+
+  // ---------------- 빠른 메모 ----------------
+  const quickCapture = useCallback(async (raw) => {
+    const text = raw.trim();
+    if (!text) return null;
+    const memoId = store.newMemoId();
+    await store.saveMemo(memoId, { title: '', html: plainToHtml(text), text, status: 'done' }, { isNew: true });
+    const s = effectiveSettings;
+    if (s.autoAnalyze) {
+      runAnalysis(memoId, { text, title: '' }).then((ai) => {
+        if (ai && s.autoStudy) runStudy(memoId, { text });
+      });
+    } else {
+      toast('저장했어요', { action: { label: '열기', href: `/m/${memoId}` } });
+    }
+    return memoId;
+  }, [store, effectiveSettings, toast, runAnalysis, runStudy]);
+
   const value = {
     session, isGuest, store, onSignOut,
-    memos, categories, loaded: loaded.memos && loaded.cats,
+    memos, trashed, categories, loaded: loaded.memos && loaded.cats,
     settings: effectiveSettings, updateSettings,
     busy, toasts, toast, dismissToast,
     ensureCategory, moveMemoToCategory, runAnalysis, applySuggestedCategory, runStudy,
+    removeMemo, restoreMemo, togglePin, quickCapture,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

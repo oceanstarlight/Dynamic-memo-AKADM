@@ -22,11 +22,14 @@
     "@tiptap/pm": "^3.32.1",
     "@tiptap/react": "^3.32.1",
     "@tiptap/starter-kit": "^3.32.1",
+    "fflate": "^0.8.3",
     "firebase": "^12.19.0",
     "lucide-react": "^1.65.0",
     "marked": "^16.4.2",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
