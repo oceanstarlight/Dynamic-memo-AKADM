@@ -13,6 +13,7 @@ import { FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
 import { CategorySelect, TagEditor } from './Properties';
 import { InsightPanel, SpellPanel, TidyPanel, StudyPanel } from './AiPanels';
 import { Popover, Spinner } from '../components/common';
+import ThemeToggle from '../components/ThemeToggle';
 
 const AUTOSAVE_DELAY = 1200;
 const MAX_HTML_BYTES = 900 * 1024; // Firestore 문서 한도(1MB) 여유분
@@ -310,6 +311,7 @@ export default function MemoView({ memoId }) {
           <div className="topbar-right">
             <SaveIndicator state={saveState} savedAt={savedAt} autoSave={settings.autoSave} isGuest={isGuest} />
             {working && <span className="topbar-flag"><Spinner size={11} /> {working === 'study' ? '학습 카드 만드는 중' : 'AI 정리 중'}</span>}
+            <ThemeToggle className="topbar-theme" />
             <button className={`icon-btn${formatOpen ? ' on' : ''}`} onClick={() => setFormatOpen((v) => !v)} title="서식 도구" aria-pressed={formatOpen}>
               <Type size={16} />
             </button>
@@ -381,7 +383,7 @@ export default function MemoView({ memoId }) {
       {panel && (
         <aside className="side-panel">
           {panel === 'insight' && (
-            <InsightPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
+            <InsightPanel memo={memo} memoId={memoId}
               onRun={async () => { if (await ensureSaved()) runAnalysis(memoId, { text: currentText(), title: titleRef.current }, { force: true }); }} />
           )}
           {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={() => setPanel(null)} />}

@@ -14,6 +14,7 @@ import Toasts from './components/Toasts';
 import SearchPalette from './components/SearchPalette';
 import SettingsDialog from './components/SettingsDialog';
 import NewMemo from './components/NewMemo';
+import ImportDialog from './components/ImportDialog';
 
 export default function App() {
   // session: undefined(확인 중) | null(로그아웃) | { kind: 'user', user } | { kind: 'guest' }
@@ -48,6 +49,7 @@ function Shell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   useTheme(settings.theme);
 
   useEffect(() => {
@@ -59,6 +61,13 @@ function Shell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // 사이드바·홈 어디서든 '파일 불러오기' 창을 열 수 있게
+  useEffect(() => {
+    const open = () => setImportOpen(true);
+    window.addEventListener('dm:import', open);
+    return () => window.removeEventListener('dm:import', open);
   }, []);
 
   // 게스트는 새로고침/닫기 시 데이터가 사라진다고 알려준다
@@ -95,6 +104,7 @@ function Shell() {
       </main>
       {searchOpen && <SearchPalette onClose={() => setSearchOpen(false)} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {importOpen && <ImportDialog onClose={() => setImportOpen(false)} />}
       <Toasts />
     </div>
   );

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { SquarePen, ChevronRight } from 'lucide-react';
+import { SquarePen, ChevronRight, FileUp } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { navigate } from '../lib/router';
+import { navigate, openImport } from '../lib/router';
 import { MemoCard, MemoRow } from './MemoCard';
 import ViewSwitch, { loadView, saveView } from './ViewSwitch';
+import ThemeToggle from './ThemeToggle';
 import { CategoryDot, useCategoryMap } from './common';
 
 const PER_SECTION = 6;
@@ -43,7 +44,9 @@ export default function HomeView() {
           </p>
         </div>
         <div className="page-actions">
+          <ThemeToggle />
           <ViewSwitch value={view} onChange={changeView} />
+          <button className="btn" onClick={openImport}><FileUp size={15} /> 불러오기</button>
           <button className="btn btn-primary" onClick={() => navigate('/new')}><SquarePen size={15} /> 새 메모</button>
         </div>
       </header>
@@ -93,7 +96,10 @@ function EmptyState() {
     <div className="empty">
       <p className="empty-title">아직 메모가 없어요</p>
       <p className="empty-sub">생각나는 대로 적고 <b>작성 완료</b>를 누르면, 카테고리와 요약은 알아서 정리돼요.</p>
-      <button className="btn btn-primary" onClick={() => navigate('/new')}><SquarePen size={15} /> 첫 메모 쓰기</button>
+      <div className="page-actions">
+        <button className="btn" onClick={openImport}><FileUp size={15} /> txt · md 불러오기</button>
+        <button className="btn btn-primary" onClick={() => navigate('/new')}><SquarePen size={15} /> 첫 메모 쓰기</button>
+      </div>
     </div>
   );
 }

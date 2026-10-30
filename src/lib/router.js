@@ -25,3 +25,5 @@ export function navigate(path, { replace = false } = {}) {
   else window.location.hash = path;
   if (replace) window.dispatchEvent(new HashChangeEvent('hashchange'));
 }
+
+export const openImport = () => window.dispatchEvent(new Event('dm:import'));

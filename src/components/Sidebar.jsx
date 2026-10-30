@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Search, SquarePen, Inbox, GraduationCap, Plus, Settings, LogOut, ChevronDown, CloudOff } from 'lucide-react';
+import { Search, SquarePen, Inbox, GraduationCap, Plus, Settings, LogOut, ChevronDown, CloudOff, FileUp } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { navigate, useRoute } from '../lib/router';
+import { navigate, openImport, useRoute } from '../lib/router';
 import { CategoryDot, Popover } from './common';
+import ThemeToggle from './ThemeToggle';
 
 export default function Sidebar({ onSearch, onSettings, onClose }) {
   const { session, isGuest, memos, categories, ensureCategory, onSignOut, toast } = useApp();
@@ -41,6 +42,7 @@ export default function Sidebar({ onSearch, onSettings, onClose }) {
           <span className="sb-account-name">{name}</span>
           <ChevronDown size={14} className="muted" />
         </button>
+        <ThemeToggle />
         <button className="icon-btn sb-close" onClick={onClose} aria-label="메뉴 닫기">×</button>
         <Popover open={menuOpen} onClose={() => setMenuOpen(false)} className="sb-menu">
           {!isGuest && <div className="menu-caption">{session.user.email}</div>}
@@ -55,6 +57,9 @@ export default function Sidebar({ onSearch, onSettings, onClose }) {
         </button>
         <button className="sb-item" onClick={() => navigate('/new')}>
           <SquarePen size={16} /> <span>새 메모</span>
+        </button>
+        <button className="sb-item" onClick={openImport}>
+          <FileUp size={16} /> <span>파일 불러오기</span>
         </button>
         <a className={`sb-item${active('') ? ' active' : ''}`} href="#/">
           <Inbox size={16} /> <span>모든 메모</span> <span className="sb-count">{memos.length || ''}</span>
