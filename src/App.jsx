@@ -29,7 +29,7 @@ export default function App() {
 
   const handleSignOut = async () => {
     if (session?.kind === 'guest') {
-      if (!confirm('게스트 메모는 저장되지 않아요. 나가면 모두 사라지는데 괜찮아?')) return;
+      if (!confirm('게스트 메모는 저장되지 않아요. 나가면 모두 사라지는데 괜찮을까요?')) return;
       setSession(null);
       return;
     }

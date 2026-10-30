@@ -23,14 +23,14 @@ function PanelHead({ title, onClose, children }) {
 
 function KeyMissing() {
   if (hasGeminiKey()) return null;
-  return <p className="panel-warn">Gemini API 키가 없어서 AI 기능을 쓸 수 없어요. GitHub Secret <code>GEMINI_API_KEY</code>를 설정한 뒤 다시 배포해 줘.</p>;
+  return <p className="panel-warn">Gemini API 키가 없어서 AI 기능을 쓸 수 없어요. GitHub Secret <code>GEMINI_API_KEY</code>를 설정한 뒤 다시 배포해 주세요.</p>;
 }
 
 // ------------------------------------------------------------
 //  요약 · 분류
 // ------------------------------------------------------------
 // 요약 패널: 닫기(X)로 메모로 돌아가거나, 아래쪽 '홈으로 / 새 메모' 버튼으로 다음 동작을 고른다
-export function InsightPanel({ memo, memoId, onClose, onRun }) {
+export function InsightPanel({ memo, memoId, tooShort, onClose, onRun }) {
   const { busy, categories, store, applySuggestedCategory } = useApp();
   const ai = memo?.ai;
   const running = busy[memoId] === 'analyze';
@@ -50,51 +50,59 @@ export function InsightPanel({ memo, memoId, onClose, onRun }) {
   return (
     <div className="panel">
       <PanelHead title="요약 · 분류" onClose={onClose}>
-        <button className="btn btn-sm" onClick={onRun} disabled={running}>
-          {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {ai ? '다시 분석' : '분석하기'}
-        </button>
+        {!tooShort && (
+          <button className="btn btn-sm" onClick={onRun} disabled={running}>
+            {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {ai ? '다시 분석' : '분석하기'}
+          </button>
+        )}
       </PanelHead>
-      <KeyMissing />
-      {memo?.aiError && !running && <p className="panel-error">최근 분석 실패: {memo.aiError}</p>}
-
-      {!ai && !running && (
-        <p className="panel-empty">‘작성 완료’를 누르면 AI가 요약하고 카테고리를 정해요. 지금 바로 분석할 수도 있어요.</p>
-      )}
-      {running && !ai && <div className="panel-loading"><Spinner /> 메모를 읽는 중…</div>}
-
-      {ai && (
+      {tooShort ? (
+        <p className="panel-short">내용이 없거나 너무 짧아서 요약할 수 없습니다.</p>
+      ) : (
         <>
-          {stale && <p className="panel-note">분석 이후 본문이 바뀌었어요. 다시 분석하면 최신 내용으로 정리돼요.</p>}
+        <KeyMissing />
+        {memo?.aiError && !running && <p className="panel-error">최근 분석 실패: {memo.aiError}</p>}
 
-          <section className="panel-sec">
-            <h4>카테고리</h4>
-            <div className="sugg-row">
-              <CategoryPill category={current} fallback="미분류" />
-              {suggestionPending && (
-                <>
-                  <ArrowRight size={13} className="muted" />
-                  <CategoryPill category={suggested || { name: ai.category, color: 'gray' }} />
-                  <button className="btn btn-sm btn-primary" onClick={() => applySuggestedCategory(memoId)}>적용</button>
-                </>
-              )}
-            </div>
-            {ai.categoryReason && <p className="panel-reason"><Sparkles size={12} /> {ai.categoryReason}</p>}
-            {ai.isNewCategory && !suggested && <p className="panel-reason">적용하면 새 카테고리가 만들어져요.</p>}
-          </section>
+        {!ai && !running && (
+          <p className="panel-empty">‘작성 완료’를 누르면 AI가 요약하고 카테고리를 정해요. 지금 바로 분석할 수도 있어요.</p>
+        )}
+        {running && !ai && <div className="panel-loading"><Spinner /> 메모를 읽는 중…</div>}
 
-          <section className="panel-sec">
-            <h4>요약 <span className="h4-hint">직접 고칠 수 있어요</span></h4>
-            <textarea className="summary-edit" value={summary} rows={4} onChange={(e) => setSummary(e.target.value)} onBlur={saveSummary} />
-          </section>
+        {ai && (
+          <>
+            {stale && <p className="panel-note">분석 이후 본문이 바뀌었어요. 다시 분석하면 최신 내용으로 정리돼요.</p>}
 
-          {ai.keyPoints?.length > 0 && (
             <section className="panel-sec">
-              <h4>핵심</h4>
-              <ul className="keypoints">{ai.keyPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              <h4>카테고리</h4>
+              <div className="sugg-row">
+                <CategoryPill category={current} fallback="미분류" />
+                {suggestionPending && (
+                  <>
+                    <ArrowRight size={13} className="muted" />
+                    <CategoryPill category={suggested || { name: ai.category, color: 'gray' }} />
+                    <button className="btn btn-sm btn-primary" onClick={() => applySuggestedCategory(memoId)}>적용</button>
+                  </>
+                )}
+              </div>
+              {ai.categoryReason && <p className="panel-reason"><Sparkles size={12} /> {ai.categoryReason}</p>}
+              {ai.isNewCategory && !suggested && <p className="panel-reason">적용하면 새 카테고리가 만들어져요.</p>}
             </section>
-          )}
 
-          <p className="panel-meta">{ai.model} · {formatRelative(ai.analyzedAt)}</p>
+            <section className="panel-sec">
+              <h4>요약 <span className="h4-hint">직접 고칠 수 있어요</span></h4>
+              <textarea className="summary-edit" value={summary} rows={4} onChange={(e) => setSummary(e.target.value)} onBlur={saveSummary} />
+            </section>
+
+            {ai.keyPoints?.length > 0 && (
+              <section className="panel-sec">
+                <h4>핵심</h4>
+                <ul className="keypoints">{ai.keyPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </section>
+            )}
+
+            <p className="panel-meta">{ai.model} · {formatRelative(ai.analyzedAt)}</p>
+          </>
+        )}
         </>
       )}
 

@@ -4,8 +4,8 @@ import { auth, googleProvider, githubProvider } from '../lib/firebase';
 import { GoogleIcon, GithubIcon } from './BrandIcons';
 
 const ERRORS = {
-  'auth/account-exists-with-different-credential': '같은 이메일로 다른 방식(구글/깃허브)으로 가입된 계정이 있어요. 처음 가입한 방식으로 로그인해 줘.',
-  'auth/popup-blocked': '팝업이 차단됐어요. 브라우저에서 팝업을 허용해 줘.',
+  'auth/account-exists-with-different-credential': '같은 이메일로 다른 방식(구글/깃허브)으로 가입된 계정이 있어요. 처음 가입한 방식으로 로그인해 주세요.',
+  'auth/popup-blocked': '팝업이 차단됐어요. 브라우저에서 팝업을 허용해 주세요.',
   'auth/unauthorized-domain': '이 도메인이 Firebase 승인 도메인에 없어요. (Firebase 콘솔 → Authentication → 설정)',
   'auth/operation-not-allowed': '이 로그인 방식이 Firebase에서 꺼져 있어요. (Firebase 콘솔 → Authentication → 로그인 방법)',
 };
