@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import { getHTMLFromFragment } from '@tiptap/core';
 import {
   ImagePlus, Table, SpellCheck, WandSparkles, Sparkles, GraduationCap, Ellipsis, Trash2, Type, Check, Cloud, CloudOff,
+  Pin, PinOff, Download,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { navigate, useRoute } from '../lib/router';
@@ -13,7 +14,9 @@ import { FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
 import { CategorySelect, TagEditor } from './Properties';
 import { InsightPanel, SpellPanel, TidyPanel, StudyPanel } from './AiPanels';
 import { Popover, Spinner } from '../components/common';
-import ThemeToggle from '../components/ThemeToggle';
+import PageBar from '../components/PageBar';
+import RelatedMemos from '../components/RelatedMemos';
+import { downloadMemo } from '../lib/exportMd';
 
 const AUTOSAVE_DELAY = 1200;
 const MAX_HTML_BYTES = 900 * 1024; // Firestore 문서 한도(1MB) 여유분
@@ -30,6 +33,7 @@ const TOOLS = [
 export default function MemoView({ memoId }) {
   const {
     memos, categories, store, settings, loaded, busy, isGuest, toast, runAnalysis, runStudy, moveMemoToCategory,
+    removeMemo, togglePin,
   } = useApp();
   const { params } = useRoute();
   const memo = memos.find((m) => m.id === memoId) || null;
@@ -275,10 +279,16 @@ export default function MemoView({ memoId }) {
 
   const remove = async () => {
     setMenuOpen(false);
-    if (!confirm('이 메모를 삭제할까? 되돌릴 수 없어.')) return;
+    if (!settings.useTrash && !confirm('이 메모를 삭제할까? 휴지통을 꺼 둬서 되돌릴 수 없어.')) return;
     savedVersionRef.current = versionRef.current; // 나갈 때 저장/확인하지 않게
-    if (existsRef.current) await store.deleteMemo(memoId);
+    if (existsRef.current) await removeMemo(memoId);
     navigate(memo?.categoryId ? `/c/${memo.categoryId}` : '/');
+  };
+
+  const exportMd = () => {
+    setMenuOpen(false);
+    const snap = snapshot();
+    downloadMemo({ title: titleRef.current, html: snap?.html ?? memo?.html ?? '' });
   };
 
   const onTool = async (tool) => {
@@ -291,7 +301,10 @@ export default function MemoView({ memoId }) {
   // ------------------------------------------------------------
   if (loaded && !memo && !isNewParam && !existsRef.current) {
     return (
-      <div className="page"><div className="empty"><p className="empty-title">메모를 찾을 수 없어요</p><a className="btn" href="#/">모든 메모로</a></div></div>
+      <>
+        <PageBar back="/" crumbs={[{ label: '모든 메모', href: '/' }, { label: '없는 메모' }]} />
+        <div className="page"><div className="empty"><p className="empty-title">메모를 찾을 수 없어요</p><p className="empty-sub">삭제됐거나 휴지통에 있을 수 있어요.</p></div></div>
+      </>
     );
   }
 
@@ -302,16 +315,12 @@ export default function MemoView({ memoId }) {
   return (
     <div className={`memo-layout${panel ? ' with-panel' : ''}`}>
       <div className="memo-main">
-        <div className="memo-topbar">
-          <nav className="crumbs">
-            <a href="#/">모든 메모</a>
-            <span>/</span>
-            {category ? <a href={`#/c/${category.id}`}>{category.name}</a> : <span>미분류</span>}
-          </nav>
-          <div className="topbar-right">
+        <PageBar
+          back={category ? `/c/${category.id}` : '/'}
+          crumbs={[{ label: '모든 메모', href: '/' }, category ? { label: category.name, href: `/c/${category.id}` } : { label: '미분류', href: '/c/none' }]}
+        >
             <SaveIndicator state={saveState} savedAt={savedAt} autoSave={settings.autoSave} isGuest={isGuest} />
             {working && <span className="topbar-flag"><Spinner size={11} /> {working === 'study' ? '학습 카드 만드는 중' : 'AI 정리 중'}</span>}
-            <ThemeToggle className="topbar-theme" />
             <button className={`icon-btn${formatOpen ? ' on' : ''}`} onClick={() => setFormatOpen((v) => !v)} title="서식 도구" aria-pressed={formatOpen}>
               <Type size={16} />
             </button>
@@ -324,11 +333,16 @@ export default function MemoView({ memoId }) {
             <div className="rel">
               <button className="icon-btn" onClick={() => setMenuOpen((v) => !v)} aria-label="더보기"><Ellipsis size={16} /></button>
               <Popover open={menuOpen} onClose={() => setMenuOpen(false)} align="right">
-                <button className="menu-item danger" onClick={remove}><Trash2 size={15} /> 메모 삭제</button>
+                {memo && (
+                  <button className="menu-item" onClick={() => { setMenuOpen(false); togglePin(memo); }}>
+                    {memo.pinned ? <><PinOff size={15} /> 고정 해제</> : <><Pin size={15} /> 맨 위에 고정</>}
+                  </button>
+                )}
+                <button className="menu-item" onClick={exportMd}><Download size={15} /> md로 내보내기</button>
+                <button className="menu-item danger" onClick={remove}><Trash2 size={15} /> {settings.useTrash ? '휴지통으로 이동' : '메모 삭제'}</button>
               </Popover>
             </div>
-          </div>
-        </div>
+        </PageBar>
 
         {formatOpen && editor && <div className="format-wrap"><FormatBar editor={editor} /></div>}
 
@@ -365,6 +379,7 @@ export default function MemoView({ memoId }) {
           {editor && <SelectionBubble editor={editor} />}
           <EditorContent editor={editor} className="editor-host" />
           {slash.element}
+          {settings.relatedMemos && memo && <RelatedMemos memo={memo} />}
         </article>
       </div>
 

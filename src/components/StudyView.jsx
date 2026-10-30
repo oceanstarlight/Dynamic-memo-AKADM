@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Shuffle, RotateCcw, GraduationCap } from 'lucide-react';
+import { Shuffle, RotateCcw, GraduationCap } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { memoTitle } from '../lib/text';
 import { CategoryDot, Spinner } from './common';
+import PageBar from './PageBar';
 
 function shuffle(list) {
   const copy = [...list];
@@ -17,7 +18,7 @@ export default function StudyView({ scope, targetId }) {
   const { memos, categories, loaded } = useApp();
 
   if (!scope) return <StudyHome />;
-  if (!loaded) return <div className="page"><Spinner /></div>;
+  if (!loaded) return <><PageBar back="/study" crumbs={[{ label: '학습', href: '/study' }]} /><div className="page"><Spinner /></div></>;
 
   const sourceMemos = scope === 'm'
     ? memos.filter((m) => m.id === targetId)
@@ -26,16 +27,18 @@ export default function StudyView({ scope, targetId }) {
   const title = scope === 'm'
     ? memoTitle(sourceMemos[0])
     : categories.find((c) => c.id === targetId)?.name || '카테고리';
-  const back = scope === 'm' ? `#/m/${targetId}` : `#/c/${targetId}`;
+  const back = scope === 'm' ? `/m/${targetId}` : `/c/${targetId}`;
 
   const cards = withStudy.flatMap((m) => (m.study.cards || []).map((c) => ({ ...c, memo: memoTitle(m) })));
   const quiz = withStudy.flatMap((m) => (m.study.quiz || []).map((q) => ({ ...q, memo: memoTitle(m) })));
 
   return (
-    <div className="page page-narrow">
-      <a className="back-link" href={back}><ArrowLeft size={14} /> {title}</a>
-      <StudySession key={`${scope}-${targetId}`} title={title} cards={cards} quiz={quiz} multi={scope === 'c'} />
-    </div>
+    <>
+      <PageBar back={back} crumbs={[{ label: '학습', href: '/study' }, { label: title, href: back }, { label: '복습' }]} />
+      <div className="page page-narrow">
+        <StudySession key={`${scope}-${targetId}`} title={title} cards={cards} quiz={quiz} multi={scope === 'c'} />
+      </div>
+    </>
   );
 }
 
@@ -192,6 +195,8 @@ function StudyHome() {
   const loose = memos.filter((m) => (m.study?.cards?.length || m.study?.quiz?.length) && !categories.some((c) => c.id === m.categoryId));
 
   return (
+    <>
+    <PageBar back="/" crumbs={[{ label: '모든 메모', href: '/' }, { label: '학습' }]} />
     <div className="page page-narrow">
       <header className="page-head">
         <div>
@@ -223,5 +228,6 @@ function StudyHome() {
         </div>
       )}
     </div>
+    </>
   );
 }

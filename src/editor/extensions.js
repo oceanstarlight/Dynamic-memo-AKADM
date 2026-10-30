@@ -1,4 +1,4 @@
-import { Mark, mergeAttributes } from '@tiptap/core';
+import { Editor, Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
@@ -91,4 +91,12 @@ export function replaceTextInDoc(editor, original, corrected) {
   // insertText는 원래 글자의 서식(굵게·하이라이트 등)을 유지한다
   editor.view.dispatch(editor.state.tr.insertText(corrected, target.from, target.to));
   return true;
+}
+
+// 화면에 붙이지 않은 임시 에디터로 HTML을 스키마에 맞게 정제한다 (AI 결과 저장 전 · 스크립트 제거)
+export function sanitizeHtml(html) {
+  const editor = new Editor({ extensions: buildPreviewExtensions(), content: html });
+  const clean = editor.getHTML();
+  editor.destroy();
+  return clean;
 }

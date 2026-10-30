@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
-import { SquarePen, ChevronRight, FileUp } from 'lucide-react';
+import { SquarePen, ChevronRight, FileUp, Pin } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { navigate, openImport } from '../lib/router';
 import { MemoCard, MemoRow } from './MemoCard';
 import ViewSwitch, { loadView, saveView } from './ViewSwitch';
 import ThemeToggle from './ThemeToggle';
 import { CategoryDot, useCategoryMap } from './common';
+import PageBar from './PageBar';
+import QuickCapture from './QuickCapture';
 
 const PER_SECTION = 6;
 
 export default function HomeView() {
-  const { memos, categories, loaded, session, isGuest } = useApp();
+  const { memos, categories, loaded, session, isGuest, settings } = useApp();
   const [view, setView] = useState(() => loadView());
   const [tag, setTag] = useState(null);
   const catMap = useCategoryMap(categories);
@@ -34,7 +36,13 @@ export default function HomeView() {
 
   const firstName = isGuest ? '' : (session.user.displayName || '').split(' ')[0];
 
+  const pinned = visible.filter((m) => m.pinned);
+
   return (
+    <>
+    <PageBar crumbs={[{ label: '모든 메모' }]}>
+      <ThemeToggle />
+    </PageBar>
     <div className="page">
       <header className="page-head">
         <div>
@@ -44,12 +52,13 @@ export default function HomeView() {
           </p>
         </div>
         <div className="page-actions">
-          <ThemeToggle />
           <ViewSwitch value={view} onChange={changeView} />
           <button className="btn" onClick={openImport}><FileUp size={15} /> 불러오기</button>
           <button className="btn btn-primary" onClick={() => navigate('/new')}><SquarePen size={15} /> 새 메모</button>
         </div>
       </header>
+
+      {settings.quickCapture && <QuickCapture />}
 
       {tagCounts.length > 0 && (
         <div className="chip-row">
@@ -73,7 +82,20 @@ export default function HomeView() {
           {visible.map((m) => <MemoRow key={m.id} memo={m} category={catMap.get(m.categoryId)} />)}
         </div>
       ) : (
-        sections.map(({ category, memos: list }) => (
+        <>
+        {pinned.length > 0 && (
+          <section className="board-section">
+            <div className="board-head board-head-static">
+              <Pin size={14} className="muted" />
+              <h2>고정됨</h2>
+              <span className="board-count">{pinned.length}</span>
+            </div>
+            <div className="card-grid">
+              {pinned.map((m) => <MemoCard key={m.id} memo={m} category={catMap.get(m.categoryId)} />)}
+            </div>
+          </section>
+        )}
+        {sections.map(({ category, memos: list }) => (
           <section key={category?.id || 'none'} className="board-section">
             <a className="board-head" href={`#/c/${category?.id || 'none'}`}>
               <CategoryDot color={category?.color || 'none'} size={9} />
@@ -85,9 +107,11 @@ export default function HomeView() {
               {list.slice(0, PER_SECTION).map((m) => <MemoCard key={m.id} memo={m} category={category} showCategory={false} />)}
             </div>
           </section>
-        ))
+        ))}
+        </>
       )}
     </div>
+    </>
   );
 }
 
