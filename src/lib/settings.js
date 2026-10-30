@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   autoStudy: true,       // 작성 완료 시 학습 카드/퀴즈 자동 생성 (별도 호출)
   // 추가 기능 (필요 없으면 꺼서 화면에서 숨길 수 있다)
   quickCapture: true,    // 홈 상단 빠른 메모 입력창
+  voiceMemo: true,       // 메모 화면 음성 메모(받아쓰기)
   relatedMemos: true,    // 메모 아래 관련 메모 추천
   askNotes: true,        // 내 메모에게 질문하기
   categoryOverview: true, // 카테고리 개요 노트
@@ -25,6 +26,7 @@ export const SETTING_LABELS = {
 
 export const FEATURE_LABELS = {
   quickCapture: ['빠른 메모', '홈 맨 위 입력창에 한 줄 적고 Enter만 누르면 저장 · 분류돼요.'],
+  voiceMemo: ['음성 메모', '메모 화면 도구에 마이크 버튼이 생겨요. 말하면 바로 글자로 받아써요.'],
   relatedMemos: ['관련 메모 추천', '메모 아래에 태그 · 카테고리가 겹치는 메모를 보여줘요. (AI 호출 없음)'],
   askNotes: ['내 메모에게 질문하기', '질문하면 관련 메모를 찾아 Gemini가 출처와 함께 답해요.'],
   categoryOverview: ['카테고리 개요', '카테고리 화면에서 안의 메모들을 한 장으로 정리해요.'],

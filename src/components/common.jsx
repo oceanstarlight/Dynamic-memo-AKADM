@@ -35,11 +35,18 @@ export function Modal({ onClose, children, className = '', label }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // 창이 떠 있는 동안 뒤 화면이 대신 스크롤되지 않게 잠근다
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.documentElement.classList.remove('modal-open');
+    };
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={label}>{children}</div>
+      <div className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={label}>
+        <div className="modal-scroll">{children}</div>
+      </div>
     </div>
   );
 }

@@ -263,17 +263,25 @@ kbd {
   display: flex; align-items: flex-start; justify-content: center;
   padding: 12vh 16px 16px;
 }
+/* 창 자체는 높이만 제한하고, 스크롤은 안쪽 .modal-scroll이 담당 (iOS Safari에서 안정적) */
 .modal {
   width: 100%; max-width: 560px;
-  max-height: calc(100dvh - 12vh - 16px); overflow-y: auto; overscroll-behavior: contain;
+  max-height: 100%;
+  display: flex; flex-direction: column;
   background: var(--bg); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-pop);
   overflow: hidden;
   animation: pop-in 0.14s ease-out;
 }
+.modal-scroll {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;
+}
+.modal-open .main { overflow: hidden; }
 @keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.99); } }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 4px; }
 .modal-head h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.modal-scroll > .modal-head { position: sticky; top: 0; z-index: 1; background: var(--bg); padding-bottom: 10px; }
 
 /* ==========================================================
    Pages
@@ -552,6 +560,33 @@ kbd {
 }
 .import-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; }
 
+/* 음성 메모 */
+.voice-recorder { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0 4px; }
+.voice-btn {
+  width: 72px; height: 72px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ink); color: var(--bg);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  transition: transform 0.12s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.voice-btn:active { transform: scale(0.96); }
+.voice-btn.on { background: var(--danger); color: #fff; animation: rec-pulse 1.6s ease-out infinite; }
+@keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 rgba(196, 65, 58, 0.45); } 100% { box-shadow: 0 0 0 18px rgba(196, 65, 58, 0); } }
+.voice-state { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1s ease-in-out infinite; }
+.voice-note { margin: 0; font-size: 12px; color: var(--ink-3); text-align: center; line-height: 1.5; }
+.voice-live {
+  min-height: 120px; max-height: 40vh; overflow-y: auto;
+  padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg);
+  font-size: 15px; line-height: 1.7; white-space: pre-wrap;
+}
+.voice-interim { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--ink-3); animation: pulse 1s infinite; }
+.voice-edit { font-size: 15px; }
+.voice-actions { display: flex; flex-direction: column; gap: 8px; }
+.voice-actions .btn-primary { height: 38px; }
+.voice-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
 /* Slash menu */
 .slash-menu {
   position: fixed; z-index: 50;
@@ -821,8 +856,8 @@ kbd {
   .crumb:not(:last-child) { display: none; }
   .crumb:last-child .crumb-sep { display: none; }
   .toast:nth-last-child(n+3) { display: none; }
-  .modal-backdrop { padding: 12px; }
-  .modal { max-height: calc(100dvh - 24px); }
+  /* 모바일: 하단 주소창 · 홈 바에 가리지 않게 아래 여백을 넉넉히 */
+  .modal-backdrop { padding: max(12px, env(safe-area-inset-top)) 12px calc(env(safe-area-inset-bottom) + 72px); }
   .trash-row { flex-wrap: wrap; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 50;
@@ -847,6 +882,11 @@ kbd {
   .rail-label { display: none; }
   .side-panel { width: 100%; left: 0; top: auto; height: 72vh; border-left: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; padding-bottom: 64px; }
   .tool-rail { z-index: 35; }
+  .side-panel { height: 78vh; padding-bottom: 84px; }
+  .voice-recorder { padding: 4px 0 0; gap: 8px; }
+  .voice-btn { width: 60px; height: 60px; }
+  .voice-live { min-height: 88px; max-height: 28vh; }
+  .voice-edit { max-height: 28vh; }
   .panel-scrim { display: block; position: fixed; inset: 0; z-index: 29; background: rgba(15, 15, 15, 0.18); }
   .toasts { bottom: 72px; }
   .import-actions { flex-direction: column-reverse; }

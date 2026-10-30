@@ -3,16 +3,17 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import { getHTMLFromFragment } from '@tiptap/core';
 import {
   ImagePlus, Table, SpellCheck, WandSparkles, Sparkles, GraduationCap, Ellipsis, Trash2, Type, Check, Cloud, CloudOff,
-  Pin, PinOff, Download,
+  Pin, PinOff, Download, Mic,
 } from 'lucide-react';
 import { useApp, MIN_AI_LENGTH } from '../AppContext';
 import { navigate, useRoute } from '../lib/router';
 import { fileToCompressedDataUrl } from '../lib/image';
-import { formatTime } from '../lib/text';
+import { formatTime, plainToHtml } from '../lib/text';
 import { buildExtensions } from './extensions';
 import { BlockBubble, FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
 import { CategorySelect, TagEditor } from './Properties';
 import { InsightPanel, SpellPanel, TidyPanel, StudyPanel } from './AiPanels';
+import VoicePanel from './VoicePanel';
 import { Popover, Spinner } from '../components/common';
 import PageBar from '../components/PageBar';
 import RelatedMemos from '../components/RelatedMemos';
@@ -24,6 +25,7 @@ const MAX_HTML_BYTES = 900 * 1024; // Firestore 문서 한도(1MB) 여유분
 const TOOLS = [
   { id: 'image', label: '사진 추가', icon: ImagePlus },
   { id: 'table', label: '표 추가', icon: Table },
+  { id: 'voice', label: '음성 메모', icon: Mic, panel: true, setting: 'voiceMemo' },
   { id: 'spell', label: '맞춤법 검사', icon: SpellCheck, panel: true },
   { id: 'tidy', label: 'AI 정리', icon: WandSparkles, panel: true },
   { id: 'insight', label: '요약 · 분류', icon: Sparkles, panel: true },
@@ -49,6 +51,7 @@ export default function MemoView({ memoId }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [tooShort, setTooShort] = useState(false); // 작성 완료했지만 본문이 짧아 요약을 건너뜀
+  const [voiceText, setVoiceText] = useState(''); // 음성 메모 받아쓰기 (패널을 닫아도 유지)
 
   const existsRef = useRef(!isNewParam);
   const titleRef = useRef('');
@@ -326,6 +329,15 @@ export default function MemoView({ memoId }) {
     setMenuOpen(!menuOpen);
   };
 
+  // 받아쓴 텍스트를 본문 맨 끝에 문단으로 붙이고 바로 저장
+  const insertVoiceText = (text) => {
+    if (!editor || !text) return;
+    editor.chain().focus('end').insertContentAt(editor.state.doc.content.size, plainToHtml(text)).run();
+    docRef.current = editor.state.doc;
+    markDirty();
+    save().then((ok) => toast(ok ? '음성 메모를 본문에 넣고 저장했어요' : '음성 메모를 본문에 넣었어요'));
+  };
+
   const onTool = (tool) => {
     if (!editor) return;
     if (!tool.panel) {
@@ -424,7 +436,7 @@ export default function MemoView({ memoId }) {
       </div>
 
       <div className="tool-rail" role="toolbar" aria-label="부가 도구">
-        {TOOLS.map((tool) => (
+        {TOOLS.filter((tool) => !tool.setting || settings[tool.setting]).map((tool) => (
           <button
             key={tool.id} className={`rail-btn${panel === tool.id ? ' on' : ''}`}
             onClick={() => onTool(tool)} title={tool.label} aria-label={tool.label}
@@ -443,6 +455,7 @@ export default function MemoView({ memoId }) {
             <InsightPanel memo={memo} memoId={memoId} tooShort={tooShort} onClose={closePanel}
               onRun={async () => { if (await ensureSaved()) runAnalysis(memoId, { text: currentText(), title: titleRef.current }, { force: true }); }} />
           )}
+          {panel === 'voice' && <VoicePanel text={voiceText} setText={setVoiceText} onInsert={insertVoiceText} onClose={closePanel} />}
           {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={closePanel} />}
           {panel === 'tidy' && <TidyPanel editor={editor} onClose={closePanel} />}
           {panel === 'study' && (
