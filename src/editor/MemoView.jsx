@@ -383,7 +383,7 @@ export default function MemoView({ memoId }) {
       {panel && (
         <aside className="side-panel">
           {panel === 'insight' && (
-            <InsightPanel memo={memo} memoId={memoId}
+            <InsightPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
               onRun={async () => { if (await ensureSaved()) runAnalysis(memoId, { text: currentText(), title: titleRef.current }, { force: true }); }} />
           )}
           {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={() => setPanel(null)} />}

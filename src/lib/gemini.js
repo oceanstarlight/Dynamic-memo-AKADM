@@ -49,11 +49,17 @@ You organize a personal knowledge base. Read the memo and return JSON matching t
 - summary: 2-3 sentences with the core message. No filler.
 - keyPoints: 2-5 short sentences with the most important facts, decisions, or to-dos.
 - tags: 2-6 short noun keywords. No '#'.
-- category: the single best category for this memo.
-  - FIRST check the existing categories below (their example memo titles show what each one is about).
-  - If any existing category covers the memo's subject, even broadly (e.g. a memo about "페이지 교체" belongs in an existing "운영체제"), use it and copy its name exactly. Set isNewCategory to false.
-  - Creating a new category is a last resort, only when no existing category is a reasonable home. Then invent a concise field/subject name (2-8 Korean characters, e.g. "운영체제", "마케팅", "여행 계획") at a similar level of granularity to the existing ones, and set isNewCategory to true.
-  - Never create a near-duplicate of an existing category (synonyms, different spacing, broader/narrower variants).
+- categoryDecision + category: decide where the memo belongs, in this order.
+  1. "none" — the memo has no real subject to file: test input, placeholder or filler text, a few repeated words
+     (e.g. "요약, 요약 불가, 요약", "테스트", "asdf"), or too little content to tell what it is about.
+     Then set category to an empty string. Do NOT force such memos into any category.
+  2. "existing" — an existing category clearly matches the memo's actual subject (the example memo titles show
+     what each category is about). Copy its name exactly. A subtopic of an existing category counts as a match
+     (e.g. a memo about "페이지 교체" goes into an existing "운영체제"). Do not pick a category just because it is
+     the only one, or because of a loose or superficial link.
+  3. "new" — the memo has a clear subject but no existing category fits. Invent a concise field/subject name
+     (2-8 Korean characters, e.g. "운영체제", "마케팅", "여행 계획") at a similar level of granularity to the existing
+     ones. Never create a near-duplicate of an existing category (synonyms, different spacing).
 - categoryReason: one short sentence explaining the choice.
 ${GUARD}
 
@@ -70,11 +76,11 @@ ${existing.length ? existing.join('\n') : '(none yet)'}
         summary: { type: 'STRING' },
         keyPoints: { type: 'ARRAY', items: { type: 'STRING' } },
         tags: { type: 'ARRAY', items: { type: 'STRING' } },
+        categoryDecision: { type: 'STRING', enum: ['none', 'existing', 'new'] },
         category: { type: 'STRING' },
-        isNewCategory: { type: 'BOOLEAN' },
         categoryReason: { type: 'STRING' },
       },
-      required: ['title', 'summary', 'keyPoints', 'tags', 'category', 'isNewCategory'],
+      required: ['title', 'summary', 'keyPoints', 'tags', 'categoryDecision', 'category'],
     },
   });
   return {
@@ -82,8 +88,9 @@ ${existing.length ? existing.join('\n') : '(none yet)'}
     summary: str(result.summary),
     keyPoints: strList(result.keyPoints, 5),
     tags: strList(result.tags, 6).map((t) => t.replace(/^#/, '')),
-    category: str(result.category).slice(0, 24) || '기타',
-    isNewCategory: !!result.isNewCategory,
+    // 분류할 내용이 없는 메모는 카테고리를 비워 두고 미분류로 남긴다
+    category: result.categoryDecision === 'none' ? '' : str(result.category).slice(0, 24),
+    isNewCategory: result.categoryDecision === 'new',
     categoryReason: str(result.categoryReason),
   };
 }
