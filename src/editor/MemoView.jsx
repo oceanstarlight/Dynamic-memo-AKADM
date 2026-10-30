@@ -5,12 +5,12 @@ import {
   ImagePlus, Table, SpellCheck, WandSparkles, Sparkles, GraduationCap, Ellipsis, Trash2, Type, Check, Cloud, CloudOff,
   Pin, PinOff, Download,
 } from 'lucide-react';
-import { useApp } from '../AppContext';
+import { useApp, MIN_AI_LENGTH } from '../AppContext';
 import { navigate, useRoute } from '../lib/router';
 import { fileToCompressedDataUrl } from '../lib/image';
 import { formatTime } from '../lib/text';
 import { buildExtensions } from './extensions';
-import { FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
+import { BlockBubble, FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
 import { CategorySelect, TagEditor } from './Properties';
 import { InsightPanel, SpellPanel, TidyPanel, StudyPanel } from './AiPanels';
 import { Popover, Spinner } from '../components/common';
@@ -48,6 +48,7 @@ export default function MemoView({ memoId }) {
   const [formatOpen, setFormatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [tooShort, setTooShort] = useState(false); // 작성 완료했지만 본문이 짧아 요약을 건너뜀
 
   const existsRef = useRef(!isNewParam);
   const titleRef = useRef('');
@@ -151,7 +152,7 @@ export default function MemoView({ memoId }) {
     if (!exists && !titleRef.current.trim() && snap.empty) return false;
     if (snap.html.length > MAX_HTML_BYTES) {
       setSaveState('error');
-      toast('메모가 너무 커서 저장할 수 없어요. 사진 수를 줄여 줘.', { tone: 'error', duration: 7000 });
+      toast('메모가 너무 커서 저장할 수 없어요. 사진 수를 줄여 주세요.', { tone: 'error', duration: 7000 });
       return false;
     }
 
@@ -167,11 +168,11 @@ export default function MemoView({ memoId }) {
     setSaveState('saving');
     try {
       await store.saveMemo(memoId, data, { isNew: !exists });
+      savedVersionRef.current = Math.max(savedVersionRef.current, version);
       if (!exists) {
         existsRef.current = true;
         navigate(`/m/${memoId}`, { replace: true });
       }
-      savedVersionRef.current = Math.max(savedVersionRef.current, version);
       setSavedAt(Date.now());
       setSaveState(isDirty() ? 'dirty' : 'saved');
       return true;
@@ -214,8 +215,9 @@ export default function MemoView({ memoId }) {
     };
     const onHashChange = (e) => {
       if (!isDirty() || settingsRef.current.autoSave) return;
-      if (e.newURL.includes(`/m/${memoId}`)) return;
-      if (!confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 나갈까?')) {
+      // 내부에서 주소만 바꾸는 이동(replace)은 newURL이 비어 있으므로 현재 주소로 판단한다
+      if ((e.newURL || window.location.href).includes(`/m/${memoId}`)) return;
+      if (!confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 나갈까요?')) {
         navigate(`/m/${memoId}`, { replace: true });
       }
     };
@@ -248,7 +250,7 @@ export default function MemoView({ memoId }) {
   const ensureSaved = async () => {
     if (existsRef.current && !isDirty()) return true;
     const ok = await save();
-    if (!ok && !existsRef.current) toast('먼저 내용을 조금 적어 줘.');
+    if (!ok && !existsRef.current) toast('먼저 내용을 조금 적어 주세요.');
     return existsRef.current;
   };
 
@@ -256,17 +258,27 @@ export default function MemoView({ memoId }) {
   //  작성 완료 → Gemini
   // ------------------------------------------------------------
   const complete = async () => {
+    const before = snapshot();
+    // 제목과 본문이 모두 비어 있으면 저장하지 않는다
+    if (!titleRef.current.trim() && (!before || before.empty)) {
+      toast('제목과 내용이 모두 비어 있어서 저장하지 않았어요.');
+      return;
+    }
     setCompleting(true);
     try {
       const ok = await save({ status: 'done' });
-      if (!ok) {
-        if (!existsRef.current) toast('빈 메모는 완료할 수 없어요.');
-        return;
-      }
+      if (!ok) return;
       const { text } = snapshot();
       const s = settingsRef.current;
+      // 본문이 짧으면 Gemini를 부르지 않고 요약 패널에 안내만 띄운다
+      if (text.trim().length < MIN_AI_LENGTH) {
+        setTooShort(true);
+        openPanel('insight');
+        return;
+      }
+      setTooShort(false);
       if (s.autoAnalyze) {
-        setPanel('insight');
+        openPanel('insight');
         await runAnalysis(memoId, { text, title: titleRef.current });
       } else {
         toast('완료했어요. 요약 · 분류는 오른쪽 도구에서 직접 실행할 수 있어요.');
@@ -277,12 +289,16 @@ export default function MemoView({ memoId }) {
     }
   };
 
-  const remove = async () => {
+  const remove = () => {
     setMenuOpen(false);
-    if (!settings.useTrash && !confirm('이 메모를 삭제할까? 휴지통을 꺼 둬서 되돌릴 수 없어.')) return;
+    if (!settings.useTrash && !confirm('이 메모를 삭제할까요? 휴지통을 꺼 두셔서 되돌릴 수 없습니다.')) return;
+    clearTimeout(timerRef.current);
     savedVersionRef.current = versionRef.current; // 나갈 때 저장/확인하지 않게
-    if (existsRef.current) await removeMemo(memoId);
+    // 서버 응답(느린 네트워크에서는 몇 초)을 기다리지 않고 바로 화면을 옮긴다 — 기다리면 버튼이 안 눌린 것처럼 보였음
     navigate(memo?.categoryId ? `/c/${memo.categoryId}` : '/');
+    if (existsRef.current) {
+      removeMemo(memoId).catch((error) => toast(`삭제 실패: ${error.message}`, { tone: 'error' }));
+    }
   };
 
   const exportMd = () => {
@@ -291,11 +307,34 @@ export default function MemoView({ memoId }) {
     downloadMemo({ title: titleRef.current, html: snap?.html ?? memo?.html ?? '' });
   };
 
-  const onTool = async (tool) => {
+  // 창이 겹치지 않게: 하나를 열면 나머지(더보기 메뉴, 모바일에서는 서식 바 · 패널)는 닫는다
+  const isNarrow = () => window.matchMedia('(max-width: 860px)').matches;
+  function openPanel(id) {
+    setMenuOpen(false);
+    if (isNarrow()) setFormatOpen(false);
+    if (id !== 'insight') setTooShort(false);
+    setPanel(id);
+  }
+  const closePanel = () => { setPanel(null); setTooShort(false); };
+  const toggleFormat = () => {
+    const next = !formatOpen;
+    if (next) { setMenuOpen(false); if (isNarrow()) closePanel(); }
+    setFormatOpen(next);
+  };
+  const toggleMenu = () => {
+    if (!menuOpen && isNarrow()) closePanel();
+    setMenuOpen(!menuOpen);
+  };
+
+  const onTool = (tool) => {
     if (!editor) return;
+    if (!tool.panel) {
+      setMenuOpen(false);
+      if (isNarrow()) closePanel();
+    }
     if (tool.id === 'image') { pickImage(); return; }
     if (tool.id === 'table') { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); return; }
-    setPanel((p) => (p === tool.id ? null : tool.id));
+    if (panel === tool.id) closePanel(); else openPanel(tool.id);
   };
 
   // ------------------------------------------------------------
@@ -321,7 +360,7 @@ export default function MemoView({ memoId }) {
         >
             <SaveIndicator state={saveState} savedAt={savedAt} autoSave={settings.autoSave} isGuest={isGuest} />
             {working && <span className="topbar-flag"><Spinner size={11} /> {working === 'study' ? '학습 카드 만드는 중' : 'AI 정리 중'}</span>}
-            <button className={`icon-btn${formatOpen ? ' on' : ''}`} onClick={() => setFormatOpen((v) => !v)} title="서식 도구" aria-pressed={formatOpen}>
+            <button className={`icon-btn${formatOpen ? ' on' : ''}`} onClick={toggleFormat} title="서식 도구" aria-pressed={formatOpen}>
               <Type size={16} />
             </button>
             {!settings.autoSave && (
@@ -331,7 +370,7 @@ export default function MemoView({ memoId }) {
               {completing ? <Spinner size={12} /> : <Check size={15} />} 작성 완료
             </button>
             <div className="rel">
-              <button className="icon-btn" onClick={() => setMenuOpen((v) => !v)} aria-label="더보기"><Ellipsis size={16} /></button>
+              <button className="icon-btn" onClick={toggleMenu} aria-label="더보기"><Ellipsis size={16} /></button>
               <Popover open={menuOpen} onClose={() => setMenuOpen(false)} align="right">
                 {memo && (
                   <button className="menu-item" onClick={() => { setMenuOpen(false); togglePin(memo); }}>
@@ -372,11 +411,12 @@ export default function MemoView({ memoId }) {
             {memo?.ai?.summary && (
               <div className="prop prop-summary">
                 <span className="prop-label">요약</span>
-                <button className="prop-summary-text" onClick={() => setPanel('insight')}>{memo.ai.summary}</button>
+                <button className="prop-summary-text" onClick={() => openPanel('insight')}>{memo.ai.summary}</button>
               </div>
             )}
           </div>
           {editor && <SelectionBubble editor={editor} />}
+          {editor && <BlockBubble editor={editor} />}
           <EditorContent editor={editor} className="editor-host" />
           {slash.element}
           {settings.relatedMemos && memo && <RelatedMemos memo={memo} />}
@@ -395,16 +435,18 @@ export default function MemoView({ memoId }) {
         ))}
       </div>
 
+      {/* 모바일: 패널이 떠 있는 동안 뒤 화면이 눌리지 않게 막고, 바깥을 누르면 패널을 닫는다 */}
+      {panel && <div className="panel-scrim" onClick={closePanel} />}
       {panel && (
         <aside className="side-panel">
           {panel === 'insight' && (
-            <InsightPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
+            <InsightPanel memo={memo} memoId={memoId} tooShort={tooShort} onClose={closePanel}
               onRun={async () => { if (await ensureSaved()) runAnalysis(memoId, { text: currentText(), title: titleRef.current }, { force: true }); }} />
           )}
-          {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={() => setPanel(null)} />}
-          {panel === 'tidy' && <TidyPanel editor={editor} onClose={() => setPanel(null)} />}
+          {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={closePanel} />}
+          {panel === 'tidy' && <TidyPanel editor={editor} onClose={closePanel} />}
           {panel === 'study' && (
-            <StudyPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
+            <StudyPanel memo={memo} memoId={memoId} onClose={closePanel}
               onRun={async () => { if (await ensureSaved()) runStudy(memoId, { text: currentText() }, { force: true }); }} />
           )}
         </aside>

@@ -11,12 +11,12 @@ export default function TrashView() {
   const daysLeft = (m) => Math.max(0, TRASH_DAYS - Math.floor((Date.now() - m.deletedAt) / 86400000));
 
   const purge = async (m) => {
-    if (!confirm(`‘${memoTitle(m)}’을(를) 영구 삭제할까? 되돌릴 수 없어.`)) return;
+    if (!confirm(`‘${memoTitle(m)}’을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return;
     await store.deleteMemo(m.id);
   };
 
   const emptyAll = async () => {
-    if (!confirm(`휴지통의 메모 ${trashed.length}개를 모두 영구 삭제할까?`)) return;
+    if (!confirm(`휴지통의 메모 ${trashed.length}개를 모두 영구 삭제할까요?`)) return;
     await Promise.all(trashed.map((m) => store.deleteMemo(m.id)));
     toast('휴지통을 비웠어요');
   };

@@ -3,7 +3,7 @@ import { useEditorState } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Baseline, MessageSquareText, Link2,
-  Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Minus, Type, Eraser,
+  Heading1, Heading2, Heading3, List, ListOrdered, ListChecks, Quote, Minus, Type, Eraser, Trash2,
 } from 'lucide-react';
 import { BLOCKS, HIGHLIGHTS, TEXT_COLORS, filterBlocks } from './blocks';
 import { Popover } from '../components/common';
@@ -82,7 +82,7 @@ function annotate(editor) {
     else editor.chain().focus().extendMarkRange('annotation').setAnnotation(next.trim()).run();
     return;
   }
-  if (editor.state.selection.empty) { alert('주석을 달 글자를 먼저 선택해 줘.'); return; }
+  if (editor.state.selection.empty) { alert('주석을 달 글자를 먼저 선택해 주세요.'); return; }
   const note = prompt('주석 내용');
   if (note && note.trim()) editor.chain().focus().setAnnotation(note.trim()).run();
 }
@@ -117,6 +117,7 @@ export function SelectionBubble({ editor }) {
   return (
     <BubbleMenu
       editor={editor}
+      pluginKey="textBubble"
       options={{ placement: 'top', offset: 8 }}
       shouldShow={({ editor: e, state }) => !state.selection.empty && !e.isActive('image') && !e.isActive('codeBlock') && e.isEditable}
       className="bubble"
@@ -231,4 +232,41 @@ export function useSlashMenu(editor, onPickImage) {
   ) : null;
 
   return { element, handleKey };
+}
+
+// 사진을 누르거나 표 안에 커서가 있을 때 뜨는 메뉴 (모바일에서는 키보드로 지우기 어려워서 버튼으로 제공)
+export function BlockBubble({ editor }) {
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({ image: e.isActive('image'), table: e.isActive('table') }),
+  });
+  const chain = () => editor.chain().focus();
+  const TextButton = ({ label, onClick, danger }) => (
+    <button type="button" className={`bubble-text${danger ? ' danger' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={onClick}>
+      {label}
+    </button>
+  );
+  return (
+    <BubbleMenu
+      editor={editor}
+      pluginKey="blockBubble"
+      options={{ placement: 'top', offset: 8 }}
+      shouldShow={({ editor: e }) => e.isEditable && (e.isActive('image') || (e.isActive('table') && e.state.selection.empty))}
+      className="bubble bubble-block"
+    >
+      {state.image ? (
+        <TextButton label={<><Trash2 size={14} /> 사진 삭제</>} danger onClick={() => chain().deleteSelection().run()} />
+      ) : state.table ? (
+        <>
+          <TextButton label="+ 행" onClick={() => chain().addRowAfter().run()} />
+          <TextButton label="− 행" onClick={() => chain().deleteRow().run()} />
+          <span className="tool-sep" />
+          <TextButton label="+ 열" onClick={() => chain().addColumnAfter().run()} />
+          <TextButton label="− 열" onClick={() => chain().deleteColumn().run()} />
+          <span className="tool-sep" />
+          <TextButton label={<><Trash2 size={14} /> 표 삭제</>} danger onClick={() => chain().deleteTable().run()} />
+        </>
+      ) : null}
+    </BubbleMenu>
+  );
 }

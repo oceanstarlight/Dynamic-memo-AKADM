@@ -53,7 +53,7 @@ export default function CategoryView({ categoryId }) {
 
   const remove = async () => {
     setMenuOpen(false);
-    if (!confirm(`‘${category.name}’ 카테고리를 삭제할까? 안의 메모 ${list.length}개는 삭제되지 않고 미분류로 옮겨져.`)) return;
+    if (!confirm(`‘${category.name}’ 카테고리를 삭제할까요? 안의 메모 ${list.length}개는 삭제되지 않고 미분류로 옮겨집니다.`)) return;
     await store.deleteCategory(category.id, list.map((m) => m.id));
     navigate('/');
   };

@@ -17,7 +17,11 @@ export function Popover({ open, onClose, className = '', children, align = 'left
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    // 팝오버를 연 버튼(같은 감싸는 요소 안)을 누른 경우는 버튼의 토글에 맡긴다 — 여기서 닫으면 바로 다시 열려 버린다
+    const onDown = (e) => {
+      const anchor = ref.current?.parentElement;
+      if (ref.current && !ref.current.contains(e.target) && !(anchor && anchor.contains(e.target) && e.target.closest('button') && !e.target.closest('.popover'))) onClose();
+    };
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     const t = setTimeout(() => document.addEventListener('mousedown', onDown));
     document.addEventListener('keydown', onKey);

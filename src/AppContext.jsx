@@ -8,7 +8,8 @@ import { hashText, plainToHtml } from './lib/text';
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
-const MIN_AI_LENGTH = 15;
+// 이보다 짧은 본문은 요약 · 분류 · 학습 카드를 만들지 않는다 (Gemini 호출 안 함)
+export const MIN_AI_LENGTH = 20;
 const TRASH_DAYS = 30;
 
 export function AppProvider({ session, onSignOut, children }) {
@@ -117,7 +118,7 @@ export function AppProvider({ session, onSignOut, children }) {
   // categorize: 설정과 상관없이 카테고리 적용 여부를 지정 (파일 'AI 자동 분류'처럼 사용자가 명시적으로 요청한 경우)
   const runAnalysis = useCallback(async (memoId, { text, title }, { force = false, categorize, silent = false } = {}) => {
     if ((text || '').trim().length < MIN_AI_LENGTH) {
-      if (force) toast(`본문이 너무 짧아서 분석하지 않았어요 (${MIN_AI_LENGTH}자 이상).`);
+      if (force) toast(`내용이 없거나 너무 짧아서 요약할 수 없습니다 (${MIN_AI_LENGTH}자 이상).`);
       return null;
     }
     const memo = memosRef.current.find((m) => m.id === memoId);
