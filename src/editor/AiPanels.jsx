@@ -29,8 +29,8 @@ function KeyMissing() {
 // ------------------------------------------------------------
 //  요약 · 분류
 // ------------------------------------------------------------
-// 요약 패널은 닫기(X) 대신 아래쪽 '홈으로 / 새 메모' 버튼으로 다음 동작을 고른다
-export function InsightPanel({ memo, memoId, onRun }) {
+// 요약 패널: 닫기(X)로 메모로 돌아가거나, 아래쪽 '홈으로 / 새 메모' 버튼으로 다음 동작을 고른다
+export function InsightPanel({ memo, memoId, onClose, onRun }) {
   const { busy, categories, store, applySuggestedCategory } = useApp();
   const ai = memo?.ai;
   const running = busy[memoId] === 'analyze';
@@ -49,7 +49,7 @@ export function InsightPanel({ memo, memoId, onRun }) {
 
   return (
     <div className="panel">
-      <PanelHead title="요약 · 분류">
+      <PanelHead title="요약 · 분류" onClose={onClose}>
         <button className="btn btn-sm" onClick={onRun} disabled={running}>
           {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {ai ? '다시 분석' : '분석하기'}
         </button>

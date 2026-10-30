@@ -119,7 +119,7 @@ export function AppProvider({ session, onSignOut, children }) {
       }));
       const result = await analyzeMemo({ text, categories: categoryHints });
       const { title: aiTitle, ...ai } = result;
-      const match = matchExistingCategory(catsRef.current, ai.category);
+      const match = ai.category && matchExistingCategory(catsRef.current, ai.category);
       if (match) {
         ai.category = match.name;
         ai.isNewCategory = false;
@@ -134,7 +134,7 @@ export function AppProvider({ session, onSignOut, children }) {
 
       let placedName = null;
       // 이미 사용자가 직접 카테고리를 정한 메모는 건드리지 않는다
-      if ((categorize ?? s.autoCategorize) && !memo?.categoryManual) {
+      if (ai.category && (categorize ?? s.autoCategorize) && !memo?.categoryManual) {
         const categoryId = await ensureCategory(ai.category, { createdBy: 'ai' });
         patch.categoryId = categoryId;
         placedName = ai.category;
@@ -146,6 +146,8 @@ export function AppProvider({ session, onSignOut, children }) {
         toast(`‘${placedName}’에 분류했어요${ai.isNewCategory ? ' · 새 카테고리' : ''}`, {
           action: { label: '열기', href: `/m/${memoId}` },
         });
+      } else if (!silent && !ai.category) {
+        toast('분류할 만한 내용이 부족해서 미분류로 뒀어요. 카테고리는 직접 정할 수 있어요.');
       } else if (!silent) {
         toast(`AI 제안: ‘${ai.category}’ — 메모 오른쪽 패널에서 적용할 수 있어요.`);
       }

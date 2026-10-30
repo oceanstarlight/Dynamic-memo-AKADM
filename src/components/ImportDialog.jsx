@@ -71,7 +71,7 @@ export default function ImportDialog({ onClose }) {
     for (const it of saved) {
       const { text, title } = it.parsed;
       const ai = await runAnalysis(it.memoId, { text, title }, { force: true, categorize: true, silent: true });
-      update(it.key, { status: 'done', category: ai?.category || null, failed: !ai });
+      update(it.key, { status: 'done', category: ai?.category || null, failed: !ai, analyzed: !!ai });
       if (ai && settings.autoStudy) runStudy(it.memoId, { text });
     }
     setPhase('done');
@@ -121,7 +121,7 @@ export default function ImportDialog({ onClose }) {
                   )}
                   {it.status === 'saving' && <><Spinner size={10} /> 저장 중…</>}
                   {it.status === 'analyzing' && <><Spinner size={10} /> AI가 분류하는 중…</>}
-                  {it.status === 'done' && !it.category && !it.failed && <><CircleCheck size={12} className="ok" /> 불러옴</>}
+                  {it.status === 'done' && !it.category && !it.failed && <><CircleCheck size={12} className="ok" /> {it.analyzed ? '분류할 내용이 부족해서 미분류로 둠' : '불러옴'}</>}
                   {it.status === 'done' && it.failed && <span className="import-error"><CircleAlert size={12} /> 불러왔지만 분류는 못 했어요</span>}
                   {it.status === 'done' && it.category && (
                     <><CircleCheck size={12} className="ok" /> <CategoryPill category={findCategoryByName(categories, it.category) || { name: it.category, color: 'gray' }} /> 에 분류</>
