@@ -5,17 +5,14 @@ export const hasGeminiKey = () => !!API_KEY;
 
 const MAX_INPUT_CHARS = 24000;
 
-async function generateJson({ system, user, schema, temperature = 0.3 }) {
+// 요청 본문을 받아 Gemini를 호출하고 응답 텍스트를 돌려준다
+async function requestText(body) {
   if (!API_KEY) throw new Error('Gemini API 키가 설정되지 않았어요. (GitHub Secret: GEMINI_API_KEY)');
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: user.slice(0, MAX_INPUT_CHARS) }] }],
-      generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema },
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json().catch(() => ({}));
@@ -27,6 +24,15 @@ async function generateJson({ system, user, schema, temperature = 0.3 }) {
     const reason = data.promptFeedback?.blockReason || candidate?.finishReason || '빈 응답';
     throw new Error(`AI가 결과를 돌려주지 않았어요 (${reason})`);
   }
+  return text;
+}
+
+async function generateJson({ system, user, schema, temperature = 0.3 }) {
+  const text = await requestText({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user.slice(0, MAX_INPUT_CHARS) }] }],
+    generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema },
+  });
   return JSON.parse(text);
 }
 
@@ -277,4 +283,26 @@ ${corpus || '(no memos)'}
   });
   const sources = [...new Set((result.sources || []).map(Number))].filter((n) => n >= 1 && n <= memos.length);
   return { answer: str(result.answer), sources: sources.map((n) => memos[n - 1].id) };
+}
+
+// ------------------------------------------------------------
+//  음성 → 텍스트 (브라우저 실시간 받아쓰기를 지원하지 않을 때만 사용)
+// ------------------------------------------------------------
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function transcribeAudio(blob) {
+  const data = await blobToBase64(blob);
+  const text = await requestText({
+    systemInstruction: { parts: [{ text: 'You transcribe voice memos. Output only the spoken words as plain text in the original language (usually Korean), with natural punctuation and line breaks between topics. Do not add commentary. If there is no speech, output nothing.' }] },
+    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: (blob.type || 'audio/webm').split(';')[0], data } }, { text: '이 음성 메모를 받아써 주세요.' }] }],
+    generationConfig: { temperature: 0 },
+  });
+  return text.trim();
 }
