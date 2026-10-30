@@ -8,6 +8,16 @@ import { Spinner } from '../components/common';
 const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 const canRecord = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder;
 export const VOICE_MODE = SpeechRecognition ? 'live' : canRecord ? 'record' : 'none';
+const MODE_KEY = 'dm-voice-mode';
+const MAX_RECORD_SEC = 5 * 60; // 녹음 → AI 받아쓰기는 비용 때문에 최대 5분
+
+// 아이폰 Safari처럼 실시간 인식이 막혀 있던 기기는 다음부터 바로 녹음 방식으로 시작한다
+function initialMode() {
+  try {
+    if (VOICE_MODE === 'live' && canRecord && localStorage.getItem(MODE_KEY) === 'record') return 'record';
+  } catch { /* 무시 */ }
+  return VOICE_MODE;
+}
 
 const ERROR_TEXT = {
   'not-allowed': '마이크 권한이 필요해요. 브라우저 설정에서 이 사이트의 마이크 사용을 허용해 주세요.',
@@ -33,6 +43,8 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
   const [interim, setInterim] = useState('');
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
+  const [mode, setMode] = useState(initialMode);
+  const [notice, setNotice] = useState('');
 
   const keepListeningRef = useRef(false);
   const recognitionRef = useRef(null);
@@ -46,6 +58,11 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
     setSeconds(0);
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
   };
+
+  // 녹음 방식은 5분이 되면 자동으로 멈추고 받아쓴다
+  useEffect(() => {
+    if (status === 'recording' && mode === 'record' && seconds >= MAX_RECORD_SEC) stopRef.current();
+  }, [seconds, status, mode]);
 
   const releaseMic = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -85,6 +102,17 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
     };
     recognition.onerror = (event) => {
       if (event.error === 'no-speech' || event.error === 'aborted') return; // 잠깐 조용했던 것뿐
+      // 기기가 웹의 실시간 인식을 막아 둔 경우(아이폰 Safari 등) → 녹음 후 AI 받아쓰기로 전환
+      if ((event.error === 'service-not-allowed' || event.error === 'language-not-supported') && canRecord) {
+        keepListeningRef.current = false;
+        stopTimer();
+        try { localStorage.setItem(MODE_KEY, 'record'); } catch { /* 무시 */ }
+        setMode('record');
+        setInterim('');
+        setStatus(text ? 'stopped' : 'idle');
+        setNotice('이 기기는 실시간 받아쓰기를 지원하지 않아서, 녹음한 뒤 AI가 받아쓰는 방식으로 바꿨어요. 버튼을 한 번 더 눌러 녹음을 시작해 주세요.');
+        return;
+      }
       fail(event.error);
     };
     // 휴대폰은 말이 끊기면 인식이 저절로 끝나므로, 녹음 중이면 다시 이어서 듣는다
@@ -111,7 +139,7 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
       stopTimer();
       setStatus('transcribing');
       try {
-        const spoken = await transcribeAudio(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }));
+        const spoken = await transcribeAudio(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), MAX_RECORD_SEC);
         setText((prev) => joinText(prev, spoken));
       } catch (e) {
         setError(/빈 응답|STOP/.test(e.message) ? '말소리를 알아듣지 못했어요. 다시 녹음해 주세요.' : `받아쓰기 실패: ${e.message}`);
@@ -125,10 +153,11 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
   const start = async (fresh) => {
     if (fresh) setText('');
     setError('');
+    setNotice('');
     setInterim('');
     keepListeningRef.current = true;
     try {
-      if (VOICE_MODE === 'live') startLive();
+      if (mode === 'live') startLive();
       else await startRecord();
       setStatus('recording');
       startTimer();
@@ -139,7 +168,7 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
 
   const stop = () => {
     keepListeningRef.current = false;
-    if (VOICE_MODE === 'live') {
+    if (mode === 'live') {
       // 말하던 중이던 마지막 문장도 확정되도록 stop (onend에서 상태 정리)
       try { recognitionRef.current?.stop(); } catch { setStatus('stopped'); }
     } else if (recorderRef.current?.state === 'recording') {
@@ -147,6 +176,8 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
     }
     stopTimer();
   };
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
 
   const insert = () => {
     onInsert(text.trim());
@@ -167,7 +198,7 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
         </div>
       </div>
 
-      {VOICE_MODE === 'none' ? (
+      {mode === 'none' ? (
         <p className="panel-warn">이 브라우저에서는 마이크를 쓸 수 없어요. Chrome, Safari, Edge에서 열어 주세요.</p>
       ) : (
         <>
@@ -186,16 +217,17 @@ export default function VoicePanel({ text, setText, onInsert, onClose }) {
               {status === 'idle' && '버튼을 누르면 녹음을 시작해요'}
               {status === 'stopped' && '녹음을 멈췄어요'}
             </div>
-            {VOICE_MODE === 'record' && status === 'idle' && (
-              <p className="voice-note">이 브라우저는 실시간 받아쓰기를 지원하지 않아요. 녹음을 마치면 AI가 한 번에 받아써요.</p>
+            {mode === 'record' && status === 'idle' && !notice && (
+              <p className="voice-note">녹음을 마치면 AI가 한 번에 받아써요 (최대 5분).</p>
             )}
           </div>
 
+          {notice && <p className="panel-note">{notice}</p>}
           {error && <p className="panel-error">{error}</p>}
 
           {recording || status === 'transcribing' ? (
             <div className="voice-live" aria-live="polite">
-              {shown || <span className="muted">{VOICE_MODE === 'live' ? '말씀하시면 여기에 바로 적혀요' : '녹음 중이에요. 끝나면 받아쓴 내용이 나와요'}</span>}
+              {shown || <span className="muted">{mode === 'live' ? '말씀하시면 여기에 바로 적혀요' : '녹음 중이에요. 끝나면 받아쓴 내용이 나와요'}</span>}
               {interim && <span className="voice-interim" />}
             </div>
           ) : status === 'stopped' && (

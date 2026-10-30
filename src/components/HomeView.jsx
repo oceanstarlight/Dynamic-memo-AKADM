@@ -14,18 +14,32 @@ const PER_SECTION = 6;
 export default function HomeView() {
   const { memos, categories, loaded, session, isGuest, settings } = useApp();
   const [view, setView] = useState(() => loadView());
+  // 상단 필터: 카테고리를 먼저 고르고, 고른 카테고리 안의 태그만 그 아래에 보여준다
+  const [catFilter, setCatFilter] = useState(null); // null = 전체, 'none' = 미분류
   const [tag, setTag] = useState(null);
   const catMap = useCategoryMap(categories);
 
   const changeView = (v) => { setView(v); saveView(v); };
+  const pickCategory = (id) => { setCatFilter(catFilter === id ? null : id); setTag(null); };
+
+  const catKey = (m) => (m.categoryId && catMap.has(m.categoryId) ? m.categoryId : 'none');
+  const catCounts = useMemo(() => {
+    const counts = new Map();
+    memos.forEach((m) => counts.set(catKey(m), (counts.get(catKey(m)) || 0) + 1));
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memos, catMap]);
+
+  const inCategory = catFilter ? memos.filter((m) => catKey(m) === catFilter) : memos;
 
   const tagCounts = useMemo(() => {
+    if (!catFilter) return [];
     const counts = new Map();
-    memos.forEach((m) => (m.tags || []).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
-  }, [memos]);
+    inCategory.forEach((m) => (m.tags || []).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+  }, [catFilter, inCategory]);
 
-  const visible = tag ? memos.filter((m) => (m.tags || []).includes(tag)) : memos;
+  const visible = tag ? inCategory.filter((m) => (m.tags || []).includes(tag)) : inCategory;
 
   const sections = useMemo(() => {
     const groups = categories.map((c) => ({ category: c, memos: visible.filter((m) => m.categoryId === c.id) }));
@@ -60,13 +74,32 @@ export default function HomeView() {
 
       {settings.quickCapture && <QuickCapture />}
 
-      {tagCounts.length > 0 && (
-        <div className="chip-row">
-          {tagCounts.map(([t, n]) => (
-            <button key={t} className={`chip${tag === t ? ' on' : ''}`} onClick={() => setTag(tag === t ? null : t)}>
-              #{t} <span className="chip-n">{n}</span>
+      {categories.length > 0 && (
+        <div className="filter-block">
+          <div className="chip-row chip-row-cats" role="tablist" aria-label="카테고리">
+            <button className={`chip${!catFilter ? ' on' : ''}`} onClick={() => pickCategory(null)}>
+              전체 <span className="chip-n">{memos.length}</span>
             </button>
-          ))}
+            {categories.filter((c) => catCounts.get(c.id)).map((c) => (
+              <button key={c.id} className={`chip chip-cat${catFilter === c.id ? ' on' : ''}`} onClick={() => pickCategory(c.id)}>
+                <CategoryDot color={c.color} /> {c.name} <span className="chip-n">{catCounts.get(c.id)}</span>
+              </button>
+            ))}
+            {catCounts.get('none') > 0 && (
+              <button className={`chip chip-cat${catFilter === 'none' ? ' on' : ''}`} onClick={() => pickCategory('none')}>
+                <CategoryDot color="none" /> 미분류 <span className="chip-n">{catCounts.get('none')}</span>
+              </button>
+            )}
+          </div>
+          {tagCounts.length > 0 && (
+            <div className="chip-row chip-row-tags" aria-label="태그">
+              {tagCounts.map(([t, n]) => (
+                <button key={t} className={`chip chip-tag${tag === t ? ' on' : ''}`} onClick={() => setTag(tag === t ? null : t)}>
+                  #{t} <span className="chip-n">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -340,6 +340,16 @@ kbd {
 .chip-n { color: var(--ink-3); margin-left: 2px; font-variant-numeric: tabular-nums; }
 .chip.on .chip-n { color: inherit; opacity: 0.7; }
 
+/* 홈 필터: 카테고리 줄 → (선택 시) 그 카테고리의 태그 줄 */
+.filter-block { margin: -4px 0 26px; }
+.filter-block .chip-row { margin: 0; }
+.chip-row-cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.chip-row-cats::-webkit-scrollbar { display: none; }
+.chip-cat { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap; }
+.chip-row-cats > .chip { flex-shrink: 0; white-space: nowrap; }
+.chip-row-tags { margin-top: 10px !important; padding-left: 10px; border-left: 2px solid var(--line-strong); gap: 5px; }
+.chip-tag { height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--line); color: var(--ink-3); }
+
 /* Board */
 .board-section { margin-bottom: 34px; }
 .board-head { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 2px 6px 2px 0; border-radius: 4px; }

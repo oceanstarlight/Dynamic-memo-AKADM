@@ -12,6 +12,11 @@ export const useApp = () => useContext(AppContext);
 export const MIN_AI_LENGTH = 20;
 const TRASH_DAYS = 30;
 
+// 작성 완료를 다시 눌러도 바뀐 양이 적으면 자동 재분석 · 재생성을 하지 않는다 (사용자가 '다시 분석'으로는 언제든 가능)
+const isMinorEdit = (prevLength, text, ratio, min) => (
+  typeof prevLength === 'number' && Math.abs(text.length - prevLength) <= Math.max(min, prevLength * ratio)
+);
+
 export function AppProvider({ session, onSignOut, children }) {
   const isGuest = session.kind === 'guest';
   const store = useMemo(
@@ -34,6 +39,7 @@ export function AppProvider({ session, onSignOut, children }) {
   const catsRef = useRef(categories);
   catsRef.current = categories;
   const memosRef = useRef(memos);
+  const inflightRef = useRef(new Set());
   memosRef.current = memos;
 
   useEffect(() => {
@@ -124,6 +130,10 @@ export function AppProvider({ session, onSignOut, children }) {
     const memo = memosRef.current.find((m) => m.id === memoId);
     const sourceHash = hashText(text);
     if (!force && memo?.ai?.sourceHash === sourceHash) return memo.ai;
+    if (!force && memo?.ai && isMinorEdit(memo.ai.sourceLength, text, 0.05, 20)) return memo.ai;
+    // 같은 메모를 동시에 두 번 분석하지 않는다 (작성 완료 연타 등)
+    if (inflightRef.current.has(`analyze:${memoId}`)) return null;
+    inflightRef.current.add(`analyze:${memoId}`);
 
     setBusyFor(memoId, 'analyze');
     try {
@@ -141,7 +151,7 @@ export function AppProvider({ session, onSignOut, children }) {
       }
       const s = effectiveSettings;
       const patch = {
-        ai: { ...ai, title: aiTitle, sourceHash, model: GEMINI_MODEL, analyzedAt: Date.now() },
+        ai: { ...ai, title: aiTitle, sourceHash, sourceLength: text.length, model: GEMINI_MODEL, analyzedAt: Date.now() },
         tags: ai.tags,
         aiError: undefined,
       };
@@ -173,6 +183,7 @@ export function AppProvider({ session, onSignOut, children }) {
       toast(`AI 정리 실패: ${error.message}`, { tone: 'error', duration: 6000 });
       return null;
     } finally {
+      inflightRef.current.delete(`analyze:${memoId}`);
       setBusyFor(memoId, null);
     }
   }, [store, effectiveSettings, ensureCategory, toast]);
@@ -194,11 +205,15 @@ export function AppProvider({ session, onSignOut, children }) {
     const memo = memosRef.current.find((m) => m.id === memoId);
     const sourceHash = hashText(text);
     if (!force && memo?.study?.sourceHash === sourceHash) return memo.study;
+    // 학습 카드는 본문이 20% 넘게 바뀌었을 때만 자동으로 다시 만든다
+    if (!force && memo?.study && isMinorEdit(memo.study.sourceLength, text, 0.2, 100)) return memo.study;
+    if (inflightRef.current.has(`study:${memoId}`)) return null;
+    inflightRef.current.add(`study:${memoId}`);
 
     setBusyFor(memoId, 'study');
     try {
       const set = await makeStudySet(text);
-      const study = { ...set, sourceHash, createdAt: Date.now() };
+      const study = { ...set, sourceHash, sourceLength: text.length, createdAt: Date.now() };
       await store.patchMemo(memoId, { study });
       if (force) toast(`플래시카드 ${set.cards.length}장 · 퀴즈 ${set.quiz.length}문제를 만들었어요`, { action: { label: '학습하기', href: `/study/m/${memoId}` } });
       return study;
@@ -207,6 +222,7 @@ export function AppProvider({ session, onSignOut, children }) {
       toast(`학습 카드 생성 실패: ${error.message}`, { tone: 'error', duration: 6000 });
       return null;
     } finally {
+      inflightRef.current.delete(`study:${memoId}`);
       setBusyFor(memoId, null);
     }
   }, [store, toast]);

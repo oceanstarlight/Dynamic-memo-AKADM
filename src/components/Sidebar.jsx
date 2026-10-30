@@ -117,11 +117,11 @@ export default function Sidebar({ onSearch, onSettings, onClose }) {
           <Search size={16} /> <span>검색</span> <kbd>⌘K</kbd>
         </button>
         <NavButton path="new" icon={SquarePen} label="새 메모" />
-        <NavButton icon={FileUp} label="파일 불러오기" onClick={() => { onClose(); openImport(); }} />
         <NavButton path="" icon={Inbox} label="모든 메모" count={memos.length} />
         {settings.askNotes && <NavButton path="ask" icon={MessageCircleQuestion} label="메모에게 질문" />}
         {settings.todoView && <NavButton path="todos" icon={ListChecks} label="할 일" />}
         <NavButton path="study" icon={GraduationCap} label="학습" />
+        <NavButton icon={FileUp} label="파일 불러오기" onClick={() => { onClose(); openImport(); }} />
       </nav>
 
       {pinned.length > 0 && (
