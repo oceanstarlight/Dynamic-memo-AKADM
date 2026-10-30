@@ -7,7 +7,9 @@ import { Spinner } from './common';
 import PageBar from './PageBar';
 
 const MAX_MEMOS = 8;
-const MAX_CHARS_PER_MEMO = 2500;
+const MAX_CHARS_PER_MEMO = 1500; // 요약 + 질문 단어 주변 발췌
+const TOTAL_BUDGET = 10000;      // 한 번 질문에 보내는 메모 글자 수 상한
+const SNIPPET_RADIUS = 250;
 const PARTICLES = /(은|는|이|가|을|를|에|에서|의|와|과|도|로|으로|한|했던|하는|이야|야|지)$/;
 
 // 질문 단어로 관련 메모를 먼저 고르고(검색), 고른 메모만 Gemini에 보낸다 → 비용 · 컨텍스트 절약
@@ -33,12 +35,40 @@ function pickMemos(question, memos, categories) {
   // 단어가 하나도 안 걸리면 최근 메모 요약으로 대신 답하게 한다
   if (!picked.length) picked = memos.slice(0, 12);
   const catName = (id) => categories.find((c) => c.id === id)?.name;
-  return picked.map((m) => ({
-    id: m.id,
-    title: m.title,
-    category: catName(m.categoryId),
-    body: picked.length > MAX_MEMOS ? (m.ai?.summary || (m.text || '').slice(0, 400)) : (m.text || '').slice(0, MAX_CHARS_PER_MEMO),
-  }));
+  const fallback = picked.length > MAX_MEMOS;
+  let used = 0;
+  const result = [];
+  for (const m of picked) {
+    const body = fallback
+      ? (m.ai?.summary || (m.text || '').slice(0, 300))
+      : buildBody(m, tokens);
+    if (used + body.length > TOTAL_BUDGET) break;
+    used += body.length;
+    result.push({ id: m.id, title: (m.title || '').slice(0, 60), category: catName(m.categoryId), body });
+  }
+  return result;
+}
+
+// 메모 전체 대신 '요약 + 질문 단어가 나온 부분 주변'만 보낸다. 짧은 메모는 본문 그대로
+function buildBody(memo, tokens) {
+  const text = memo.text || '';
+  if (text.length <= MAX_CHARS_PER_MEMO) return text;
+  const lower = text.toLowerCase();
+  const windows = [];
+  tokens.forEach((t) => {
+    const at = lower.indexOf(t);
+    if (at >= 0) windows.push([Math.max(0, at - SNIPPET_RADIUS), Math.min(text.length, at + t.length + SNIPPET_RADIUS)]);
+  });
+  windows.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  windows.forEach((w) => {
+    const last = merged[merged.length - 1];
+    if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
+    else merged.push([...w]);
+  });
+  const summary = memo.ai?.summary ? `요약: ${memo.ai.summary}\n` : '';
+  const snippets = merged.map(([a, b]) => `…${text.slice(a, b)}…`).join('\n');
+  return (summary + (snippets || text.slice(0, MAX_CHARS_PER_MEMO))).slice(0, MAX_CHARS_PER_MEMO);
 }
 
 export default function AskView() {

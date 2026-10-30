@@ -145,7 +145,8 @@ function Overview({ category, list }) {
   const run = async () => {
     setRunning(true);
     try {
-      const memos = list.slice(0, 40).map((m) => ({ title: m.title, summary: m.ai?.summary, text: m.text }));
+      // 본문 대신 요약 · 핵심 위주로 보낸다 (개수 · 글자 예산은 categoryOverview에서 제한)
+      const memos = list.map((m) => ({ title: m.title, summary: m.ai?.summary, keyPoints: m.ai?.keyPoints, text: m.text }));
       const result = await categoryOverview({ name: category.name, memos });
       // 스키마로 정제한 HTML만 저장
       await store.updateCategory(category.id, {
@@ -181,7 +182,10 @@ function Overview({ category, list }) {
             ? <><Spinner size={11} /> 정리 중…</>
             : `${formatRelative(overview.createdAt)} · 메모 ${overview.memoCount}개 기준${stale ? ' · 이후 바뀐 메모 있음' : ''}`}
         </span>
-        <button className="btn btn-sm btn-ghost" onClick={run} disabled={running}><RefreshCw size={13} /> 다시</button>
+        {/* 바뀐 메모가 없으면 다시 만들 필요가 없으므로 버튼을 막는다 */}
+        <button className="btn btn-sm btn-ghost" onClick={run} disabled={running || !stale} title={stale ? '' : '바뀐 메모가 없어요'}>
+          <RefreshCw size={13} /> {stale ? '다시' : '최신'}
+        </button>
       </div>
       {expanded && overview && (
         <>

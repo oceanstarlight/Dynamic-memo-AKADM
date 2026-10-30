@@ -71,12 +71,15 @@ Every automation is on by default, and **each one can be turned off in Settings 
 
 - Summary & category, spell check, tidy-up (preview, then apply or undo), study cards, voice memo
 - Notes under 20 characters skip the AI call and show a "too short to summarize" message
+- Voice memo: devices that block live dictation (such as some iPhone Safari setups) switch automatically to recording followed by AI transcription (up to 5 minutes)
+- Long notes are trimmed to what each feature needs before they are sent to the AI (images are never sent)
 </details>
 
 <details>
 <summary><b>Organizing & finding</b></summary>
 
-- Board and list views by category, tag filters, `Ctrl/⌘ + K` search
+- Board and list views by category, `Ctrl/⌘ + K` search
+- Home filter: pick a category and its tags appear underneath
 - Sidebar tree: tap a category to expand its notes
 - Related notes (no AI call)
 - Category overview: one study-guide page that covers every note in a category

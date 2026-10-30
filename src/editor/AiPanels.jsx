@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { X, RefreshCw, Sparkles, ArrowRight, Undo2, House, SquarePen } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { spellCheck, tidyMemo, hasGeminiKey } from '../lib/gemini';
+import { spellCheck, tidyMemo, hasGeminiKey, SPELL_TEXT_BUDGET } from '../lib/gemini';
 import { findCategoryByName } from '../lib/categories';
 import { formatRelative, hashText } from '../lib/text';
 import { buildPreviewExtensions, replaceTextInDoc } from './extensions';
@@ -119,6 +119,7 @@ export function InsightPanel({ memo, memoId, tooShort, onClose, onRun }) {
 // ------------------------------------------------------------
 export function SpellPanel({ editor, getText, onClose }) {
   const [issues, setIssues] = useState(null);
+  const [truncated, setTruncated] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
 
@@ -128,7 +129,9 @@ export function SpellPanel({ editor, getText, onClose }) {
     setRunning(true);
     setError('');
     try {
-      setIssues(await spellCheck(text));
+      const result = await spellCheck(text);
+      setIssues(result.issues);
+      setTruncated(result.truncated);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -158,6 +161,7 @@ export function SpellPanel({ editor, getText, onClose }) {
       {running && <div className="panel-loading"><Spinner /> 검사 중…</div>}
       {issues && !running && (
         <>
+          {truncated && <p className="panel-note">메모가 길어서 앞부분 {SPELL_TEXT_BUDGET.toLocaleString()}자만 검사했어요.</p>}
           {issues.length === 0 && <p className="panel-empty">고칠 곳을 찾지 못했어요.</p>}
           {open.length > 1 && <button className="btn btn-sm btn-block" onClick={applyAll}>남은 {open.length}개 모두 고치기</button>}
           <ul className="issue-list">

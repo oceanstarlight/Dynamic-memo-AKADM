@@ -13,7 +13,7 @@
 | 전역 상태 · AI 실행 · 휴지통 · 빠른 메모 | `src/AppContext.jsx` | `AppProvider`, `useApp` |
 | **사이드바** (메뉴, 카테고리 트리, 고정, 휴지통) | `src/components/Sidebar.jsx` | `Sidebar`, `renderGroup`, `toggle` |
 | **상단 바 · 뒤로가기** (모든 화면 공통) | `src/components/PageBar.jsx` | `PageBar`, `openNav` |
-| 홈 (보드/목록, 태그 필터, 고정, 빠른 메모) | `src/components/HomeView.jsx` | `HomeView` |
+| 홈 (보드/목록, 카테고리→태그 필터, 고정, 빠른 메모) | `src/components/HomeView.jsx` | `HomeView`, `pickCategory` |
 | 빠른 메모 입력창 | `src/components/QuickCapture.jsx` | `QuickCapture` |
 | 카테고리 화면 · 개요 노트 · zip 내보내기 | `src/components/CategoryView.jsx` | `CategoryView`, `Overview` |
 | **메모 편집 화면** (저장, 작성 완료, 패널, 도구 레일) | `src/editor/MemoView.jsx` | `MemoView`, `save`, `complete`, `openPanel` |
@@ -22,7 +22,8 @@
 | 슬래시 블록 목록 · 하이라이트/글자 색 | `src/editor/blocks.js` | `BLOCKS`, `HIGHLIGHTS`, `TEXT_COLORS` |
 | Tiptap 확장 (주석, 구분선 굵기), HTML 정제 | `src/editor/extensions.js` | `buildExtensions`, `Annotation`, `sanitizeHtml` |
 | 요약 · 맞춤법 · AI 정리 · 학습 카드 패널 | `src/editor/AiPanels.jsx` | `InsightPanel`, `SpellPanel`, `TidyPanel`, `StudyPanel` |
-| **음성 메모** | `src/editor/VoicePanel.jsx` | `VoicePanel`, `VOICE_MODE` |
+| **음성 메모** (실시간 / 녹음 fallback) | `src/editor/VoicePanel.jsx` | `VoicePanel`, `VOICE_MODE`, `initialMode` |
+| **AI 입력 예산** (긴 메모 자르기) | `src/lib/gemini.js` | `clipText`, `*_BUDGET` |
 | 관련 메모 추천 | `src/components/RelatedMemos.jsx` | `score` |
 | 메모에게 질문 | `src/components/AskView.jsx` | `pickMemos`, `AskView` |
 | 할 일 모아보기 | `src/components/TodoView.jsx` | `extractTodos`, `setTodoChecked` |
@@ -74,7 +75,7 @@
 | `busy[memoId]` | `'analyze'` · `'study'` 진행 중 표시 |
 | `toast(msg, {tone, action})` | 알림 (`action: {label, href | onClick}`) |
 | `runAnalysis(id, {text,title}, {force, categorize, silent})` | 요약 · 분류. 20자 미만이거나 같은 내용(sourceHash)이면 건너뜀 |
-| `runStudy(id, {text}, {force})` | 학습 카드 (별도 호출) |
+| `runStudy(id, {text}, {force})` | 학습 카드 (별도 호출). 같은 내용이면 건너뜀 |
 | `ensureCategory(name)` | 이름으로 찾고, 없으면 생성 |
 | `moveMemoToCategory` / `applySuggestedCategory` | 직접 이동(`categoryManual: true`) / AI 제안 적용 |
 | `removeMemo` · `restoreMemo` · `togglePin` | 휴지통(설정 `useTrash`) 또는 즉시 삭제, 복원, 고정 |
@@ -101,14 +102,14 @@
 | 함수 | 용도 | 응답 |
 |---|---|---|
 | `requestText(body)` | 공통 fetch (`x-goog-api-key`) | text |
-| `generateJson({system,user,schema})` | JSON 스키마 응답 | object |
-| `analyzeMemo({text, categories:[{name, examples}]})` | 제목 · 요약 · 핵심 · 태그 · `categoryDecision`(none/existing/new) | `none`이면 `category: ''` |
-| `spellCheck(text)` | 맞춤법 · 띄어쓰기 `[{original, corrected, reason}]` | |
-| `tidyMemo(html)` | 구조 다듬기 (허용 태그만) | `{html, note}` |
-| `makeStudySet(text)` | 플래시카드 3~10개, 퀴즈 3~6개 | `{cards, quiz}` |
-| `categoryOverview({name, memos})` | 카테고리 개요 HTML + 빠진 주제 | `{html, gaps}` |
-| `askNotes({question, memos, history})` | 메모 근거 답변 + 출처 번호 | `{answer, sources:[memoId]}` |
-| `transcribeAudio(blob)` | 음성 받아쓰기 (실시간 인식 미지원 시) | text |
+| `generateJson({system,user,schema})` | JSON 스키마 응답 (user는 최대 24000자) | object |
+| `analyzeMemo({text, categories:[{name, examples}]})` | 제목 · 요약 · 핵심 · 태그 · `categoryDecision`(none/existing/new). 입력 6000자, 카테고리 힌트 50개 | `none`이면 `category: ''` |
+| `spellCheck(text)` | 맞춤법 · 띄어쓰기. 앞 6000자만 | `{issues, truncated}` |
+| `tidyMemo(html)` | 구조 다듬기. 사진은 `<img data-ref>`로 바꿔 보내고 복원, 16000자 초과면 거절 | `{html, note}` |
+| `makeStudySet(text)` | 플래시카드 3~10개, 퀴즈 3~6개. 입력 8000자 | `{cards, quiz}` |
+| `categoryOverview({name, memos})` | 요약 · 핵심 위주, 최대 60개 · 14000자 | `{html, gaps}` |
+| `askNotes({question, memos, history})` | 메모 근거 답변 + 출처. 대화 2턴, 질문 500자 (메모 발췌는 `AskView.pickMemos`에서 1만 자 이하) | `{answer, sources:[memoId]}` |
+| `transcribeAudio(blob, maxSec)` | 16kHz WAV로 변환 후 받아쓰기 (최대 5분) | text |
 
 - 모델: `VITE_GEMINI_MODEL` (기본 `gemini-3.5-flash-lite`), 키: `VITE_GEMINI_API_KEY`
 - 모든 프롬프트에 `GUARD` 문구 포함 (메모 내용을 지시로 해석하지 않도록 하는 방어)
@@ -142,7 +143,7 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 | `quickCapture` · `voiceMemo` · `relatedMemos` · `askNotes` · `categoryOverview` · `todoView` · `useTrash` | true | 추가 기능 표시 여부 |
 | `theme` | `'system'` | `'light'` / `'dark'` |
 
-localStorage 키: `dm-settings`, `dm-view`(보드/목록), `dm-sb-open`(사이드바 펼친 카테고리)
+localStorage 키: `dm-settings`, `dm-view`(보드/목록), `dm-sb-open`(사이드바 펼친 카테고리), `dm-voice-mode`(실시간 인식이 막힌 기기면 `record`)
 
 ## 7. 스타일 지도 (`src/styles.css`)
 
