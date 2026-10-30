@@ -197,6 +197,6 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 ## 관련 문서
 - [plans.md](plans.md): 작업 기록과 남은 일
 - [PREF.md](PREF.md): 코드 · 기능 색인
-- [CLAUDE.md](CLAUDE.md): AI 작업 세션용 규칙 · 환경
+- [CLAUDE.md](CLAUDE.md): AI 작업 세션용 핵심 규칙
 
 <sub>이 프로젝트는 [my-memo-app](https://github.com/oceanstarlight/my-memo-app)의 기능을 바탕으로 새로 만들었습니다. 아직 라이선스는 정하지 않았습니다.</sub>
