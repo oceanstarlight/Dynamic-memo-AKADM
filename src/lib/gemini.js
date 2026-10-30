@@ -5,53 +5,7 @@ export const hasGeminiKey = () => !!API_KEY;
 
 const MAX_INPUT_CHARS = 24000;
 
-// ------------------------------------------------------------
-//  과사용 방지
-//  1) 호출 횟수: 1분 · 하루 한도 (브라우저 기준)
-//  2) 입력 크기: 기능별 글자 수 예산 (긴 메모는 앞 · 뒤만 보냄)
-//  3) 출력 크기: 기능별 maxOutputTokens
-// ------------------------------------------------------------
-export const AI_LIMITS = { perMinute: 15, perDay: 250 };
-const USAGE_KEY = 'dm-ai-usage';
-let memoryUsage = null; // localStorage를 못 쓰는 환경용
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function readUsage() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(USAGE_KEY) || 'null');
-    if (saved) return saved;
-  } catch { /* 무시 */ }
-  return memoryUsage || { day: today(), count: 0, recent: [] };
-}
-
-function writeUsage(usage) {
-  memoryUsage = usage;
-  try { localStorage.setItem(USAGE_KEY, JSON.stringify(usage)); } catch { /* 무시 */ }
-}
-
-export function aiUsageToday() {
-  const usage = readUsage();
-  return usage.day === today() ? usage.count : 0;
-}
-
-function takeQuota() {
-  const now = Date.now();
-  const usage = readUsage();
-  if (usage.day !== today()) { usage.day = today(); usage.count = 0; }
-  usage.recent = (usage.recent || []).filter((t) => now - t < 60000);
-  if (usage.count >= AI_LIMITS.perDay) {
-    throw new Error(`오늘 AI 사용 한도(${AI_LIMITS.perDay}회)에 도달했어요. 내일 다시 이용해 주세요.`);
-  }
-  if (usage.recent.length >= AI_LIMITS.perMinute) {
-    throw new Error('AI 요청이 너무 잦아요. 1분 정도 뒤에 다시 시도해 주세요.');
-  }
-  usage.count += 1;
-  usage.recent.push(now);
-  writeUsage(usage);
-}
-
-// 긴 글은 앞부분 70% + 뒷부분 30%만 남긴다 (도입과 결론이 요약 · 분류에 가장 중요)
+// 긴 메모는 기능별 글자 수 예산 안에서만 보낸다: 앞부분 70% + 뒷부분 30% (도입과 결론이 요약 · 분류에 가장 중요)
 export function clipText(text, max) {
   const value = String(text || '');
   if (value.length <= max) return value;
@@ -62,7 +16,6 @@ export function clipText(text, max) {
 // 요청 본문을 받아 Gemini를 호출하고 응답 텍스트를 돌려준다
 async function requestText(body) {
   if (!API_KEY) throw new Error('Gemini API 키가 설정되지 않았어요. (GitHub Secret: GEMINI_API_KEY)');
-  takeQuota();
 
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
     method: 'POST',
@@ -82,11 +35,11 @@ async function requestText(body) {
   return text;
 }
 
-async function generateJson({ system, user, schema, temperature = 0.3, maxOutputTokens = 1024 }) {
+async function generateJson({ system, user, schema, temperature = 0.3 }) {
   const text = await requestText({
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: 'user', parts: [{ text: user.slice(0, MAX_INPUT_CHARS) }] }],
-    generationConfig: { temperature, maxOutputTokens, responseMimeType: 'application/json', responseSchema: schema },
+    generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema },
   });
   return JSON.parse(text);
 }
@@ -135,7 +88,6 @@ ${existing.length ? existing.join('\n') : '(none yet)'}
   const result = await generateJson({
     system,
     user: clipText(text, ANALYZE_TEXT_BUDGET),
-    maxOutputTokens: 1024,
     schema: {
       type: 'OBJECT',
       properties: {
@@ -184,7 +136,6 @@ ${GUARD}
 `,
     user: text,
     temperature: 0.1,
-    maxOutputTokens: 2048,
     schema: {
       type: 'OBJECT',
       properties: {
@@ -234,7 +185,6 @@ ${GUARD}
 `,
     user: html,
     temperature: 0.2,
-    maxOutputTokens: 8192,
     schema: {
       type: 'OBJECT',
       properties: { html: { type: 'STRING' }, note: { type: 'STRING' } },
@@ -263,7 +213,6 @@ ${GUARD}
 `,
     user: clipText(text, STUDY_TEXT_BUDGET),
     temperature: 0.4,
-    maxOutputTokens: 2048,
     schema: {
       type: 'OBJECT',
       properties: {
@@ -332,7 +281,6 @@ ${GUARD}
 `,
     user: corpus,
     temperature: 0.3,
-    maxOutputTokens: 2048,
     schema: {
       type: 'OBJECT',
       properties: { html: { type: 'STRING' }, gaps: { type: 'ARRAY', items: { type: 'STRING' } } },
@@ -367,7 +315,6 @@ ${corpus || '(no memos)'}
 `,
     user: question.slice(0, 500),
     temperature: 0.2,
-    maxOutputTokens: 1024,
     schema: {
       type: 'OBJECT',
       properties: { answer: { type: 'STRING' }, sources: { type: 'ARRAY', items: { type: 'INTEGER' } } },
@@ -427,7 +374,7 @@ export async function transcribeAudio(original, maxSec = 300) {
   const text = await requestText({
     systemInstruction: { parts: [{ text: 'You transcribe voice memos. Output only the spoken words as plain text in the original language (usually Korean), with natural punctuation and line breaks between topics. Do not add commentary. If there is no speech, output nothing.' }] },
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: (blob.type || 'audio/webm').split(';')[0], data } }, { text: '이 음성 메모를 받아써 주세요.' }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 4096 },
+    generationConfig: { temperature: 0 },
   });
   return text.trim();
 }

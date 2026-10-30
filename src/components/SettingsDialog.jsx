@@ -2,7 +2,7 @@ import { useApp } from '../AppContext';
 import { Download } from 'lucide-react';
 import { FEATURE_LABELS, SETTING_LABELS } from '../lib/settings';
 import { downloadMemosZip } from '../lib/exportMd';
-import { GEMINI_MODEL, hasGeminiKey, aiUsageToday, AI_LIMITS } from '../lib/gemini';
+import { GEMINI_MODEL, hasGeminiKey } from '../lib/gemini';
 import { Modal } from './common';
 
 export default function SettingsDialog({ onClose }) {
@@ -84,7 +84,6 @@ export default function SettingsDialog({ onClose }) {
 
       <p className="settings-foot">
         AI 모델 {GEMINI_MODEL} · {hasGeminiKey() ? 'API 키 연결됨' : 'API 키 없음 (GEMINI_API_KEY)'}
-        <br />오늘 AI 사용 {aiUsageToday()} / {AI_LIMITS.perDay}회 (1분에 최대 {AI_LIMITS.perMinute}회, 이 기기 기준)
       </p>
     </Modal>
   );

@@ -16,11 +16,8 @@ export default function ImportDialog({ onClose }) {
 
   const update = (key, patch) => setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)));
 
-  const MAX_FILES = 20; // 한 번에 'AI 자동 분류'로 너무 많이 호출하지 않게
   const addFiles = (fileList) => {
-    const room = MAX_FILES - items.length;
-    const files = [...fileList].slice(0, Math.max(0, room));
-    if (fileList.length > files.length) toast(`한 번에 최대 ${MAX_FILES}개까지 불러올 수 있어요.`);
+    const files = [...fileList];
     if (!files.length) return;
     const added = files.map((file, i) => ({ key: `${Date.now()}-${i}-${file.name}`, name: file.name, status: 'reading' }));
     setItems((list) => [...list, ...added]);
