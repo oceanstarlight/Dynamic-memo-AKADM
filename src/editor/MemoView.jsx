@@ -1,0 +1,418 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import { getHTMLFromFragment } from '@tiptap/core';
+import {
+  ImagePlus, Table, SpellCheck, WandSparkles, Sparkles, GraduationCap, Ellipsis, Trash2, Type, Check, Cloud, CloudOff,
+} from 'lucide-react';
+import { useApp } from '../AppContext';
+import { navigate, useRoute } from '../lib/router';
+import { fileToCompressedDataUrl } from '../lib/image';
+import { formatTime } from '../lib/text';
+import { buildExtensions } from './extensions';
+import { FormatBar, SelectionBubble, useSlashMenu } from './FormatTools';
+import { CategorySelect, TagEditor } from './Properties';
+import { InsightPanel, SpellPanel, TidyPanel, StudyPanel } from './AiPanels';
+import { Popover, Spinner } from '../components/common';
+
+const AUTOSAVE_DELAY = 1200;
+const MAX_HTML_BYTES = 900 * 1024; // Firestore 문서 한도(1MB) 여유분
+
+const TOOLS = [
+  { id: 'image', label: '사진 추가', icon: ImagePlus },
+  { id: 'table', label: '표 추가', icon: Table },
+  { id: 'spell', label: '맞춤법 검사', icon: SpellCheck, panel: true },
+  { id: 'tidy', label: 'AI 정리', icon: WandSparkles, panel: true },
+  { id: 'insight', label: '요약 · 분류', icon: Sparkles, panel: true },
+  { id: 'study', label: '학습 카드', icon: GraduationCap, panel: true },
+];
+
+export default function MemoView({ memoId }) {
+  const {
+    memos, categories, store, settings, loaded, busy, isGuest, toast, runAnalysis, runStudy, moveMemoToCategory,
+  } = useApp();
+  const { params } = useRoute();
+  const memo = memos.find((m) => m.id === memoId) || null;
+  const isNewParam = params.get('new') === '1';
+  const presetCategory = params.get('c');
+
+  const [title, setTitle] = useState('');
+  const [ready, setReady] = useState(false);
+  const [saveState, setSaveState] = useState('idle'); // idle | dirty | saving | saved | error
+  const [savedAt, setSavedAt] = useState(null);
+  const [panel, setPanel] = useState(null);
+  const [formatOpen, setFormatOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
+  const existsRef = useRef(!isNewParam);
+  const titleRef = useRef('');
+  const docRef = useRef(null);
+  const versionRef = useRef(0);
+  const savedVersionRef = useRef(0);
+  const timerRef = useRef(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const fileInputRef = useRef(null);
+  const slashKeyRef = useRef(() => false);
+
+  const isDirty = () => versionRef.current !== savedVersionRef.current;
+
+  // ------------------------------------------------------------
+  //  에디터
+  // ------------------------------------------------------------
+  const insertImageFiles = useCallback(async (files, ed) => {
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const src = await fileToCompressedDataUrl(file);
+        ed.chain().focus().setImage({ src, alt: file.name }).run();
+      } catch (error) {
+        toast(`사진을 넣지 못했어요: ${error.message}`, { tone: 'error' });
+      }
+    }
+  }, [toast]);
+
+  const editor = useEditor({
+    extensions: buildExtensions(),
+    content: '',
+    editorProps: {
+      attributes: { class: 'prose', spellcheck: 'false' },
+      handleKeyDown: (_view, event) => slashKeyRef.current(event),
+      handlePaste: (_view, event) => {
+        const files = [...(event.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+        if (!files.length) return false;
+        insertImageFiles(files, editorRef.current);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = [...(event.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
+        if (!files.length) return false;
+        event.preventDefault();
+        insertImageFiles(files, editorRef.current);
+        return true;
+      },
+    },
+    onUpdate: ({ editor: ed }) => {
+      docRef.current = ed.state.doc;
+      markDirty();
+    },
+  }, []);
+  const editorRef = useRef(null);
+  editorRef.current = editor;
+
+  const pickImage = () => fileInputRef.current?.click();
+  const slash = useSlashMenu(editor, pickImage);
+  slashKeyRef.current = slash.handleKey;
+
+  // 메모 데이터를 한 번만 에디터에 싣는다 (이후엔 에디터가 원본)
+  useEffect(() => {
+    if (!editor || ready || !loaded) return;
+    if (!memo && !isNewParam) return;
+    editor.commands.setContent(memo?.html || '', { emitUpdate: false });
+    docRef.current = editor.state.doc;
+    setTitle(memo?.title || '');
+    titleRef.current = memo?.title || '';
+    setReady(true);
+    if (isNewParam) requestAnimationFrame(() => document.querySelector('.memo-title')?.focus());
+  }, [editor, ready, loaded, memo, isNewParam]);
+
+  // AI가 빈 제목을 채워 주면 반영
+  useEffect(() => {
+    if (ready && memo?.title && !titleRef.current.trim() && document.activeElement?.className !== 'memo-title') {
+      setTitle(memo.title);
+      titleRef.current = memo.title;
+    }
+  }, [memo?.title, ready]);
+
+  // ------------------------------------------------------------
+  //  저장
+  // ------------------------------------------------------------
+  const snapshot = () => {
+    const doc = docRef.current;
+    const schema = editorRef.current?.schema;
+    if (!doc || !schema) return null;
+    return {
+      html: getHTMLFromFragment(doc.content, schema),
+      text: doc.textBetween(0, doc.content.size, '\n', ' '),
+      empty: doc.textContent.trim() === '' && doc.childCount <= 1 && !doc.firstChild?.childCount,
+    };
+  };
+
+  const save = useCallback(async ({ status } = {}) => {
+    clearTimeout(timerRef.current);
+    const snap = snapshot();
+    if (!snap) return false;
+    const exists = existsRef.current;
+    if (!exists && !titleRef.current.trim() && snap.empty) return false;
+    if (snap.html.length > MAX_HTML_BYTES) {
+      setSaveState('error');
+      toast('메모가 너무 커서 저장할 수 없어요. 사진 수를 줄여 줘.', { tone: 'error', duration: 7000 });
+      return false;
+    }
+
+    const data = { title: titleRef.current, html: snap.html, text: snap.text };
+    if (status) data.status = status;
+    else if (!exists) data.status = 'draft';
+    if (!exists && presetCategory && categories.some((c) => c.id === presetCategory)) {
+      data.categoryId = presetCategory;
+      data.categoryManual = true;
+    }
+
+    const version = versionRef.current;
+    setSaveState('saving');
+    try {
+      await store.saveMemo(memoId, data, { isNew: !exists });
+      if (!exists) {
+        existsRef.current = true;
+        navigate(`/m/${memoId}`, { replace: true });
+      }
+      savedVersionRef.current = Math.max(savedVersionRef.current, version);
+      setSavedAt(Date.now());
+      setSaveState(isDirty() ? 'dirty' : 'saved');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setSaveState('error');
+      toast(`저장 실패: ${error.message}`, { tone: 'error' });
+      return false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memoId, store, presetCategory, categories, toast]);
+
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  function markDirty() {
+    versionRef.current += 1;
+    setSaveState('dirty');
+    if (settingsRef.current.autoSave) {
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => saveRef.current(), AUTOSAVE_DELAY);
+    }
+  }
+
+  const onTitleChange = (e) => {
+    setTitle(e.target.value);
+    titleRef.current = e.target.value;
+    markDirty();
+  };
+
+  // 탭을 숨기거나 화면을 떠날 때: 자동 저장이면 바로 올리고, 아니면 확인을 받는다
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden' && isDirty() && settingsRef.current.autoSave) saveRef.current();
+    };
+    const onBeforeUnload = (e) => {
+      if (!isDirty()) return;
+      if (settingsRef.current.autoSave) saveRef.current();
+      else { e.preventDefault(); e.returnValue = ''; }
+    };
+    const onHashChange = (e) => {
+      if (!isDirty() || settingsRef.current.autoSave) return;
+      if (e.newURL.includes(`/m/${memoId}`)) return;
+      if (!confirm('저장하지 않은 변경사항이 있어요. 저장하지 않고 나갈까?')) {
+        navigate(`/m/${memoId}`, { replace: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('hashchange', onHashChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('hashchange', onHashChange);
+      clearTimeout(timerRef.current);
+      if (isDirty() && settingsRef.current.autoSave) saveRef.current();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memoId]);
+
+  // Ctrl/Cmd + S: 언제든 수동 저장
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveRef.current().then((ok) => ok && !settingsRef.current.autoSave && toast('저장했어요'));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toast]);
+
+  // 속성 변경 전에 문서가 서버에 있어야 하는 경우
+  const ensureSaved = async () => {
+    if (existsRef.current && !isDirty()) return true;
+    const ok = await save();
+    if (!ok && !existsRef.current) toast('먼저 내용을 조금 적어 줘.');
+    return existsRef.current;
+  };
+
+  // ------------------------------------------------------------
+  //  작성 완료 → Gemini
+  // ------------------------------------------------------------
+  const complete = async () => {
+    setCompleting(true);
+    try {
+      const ok = await save({ status: 'done' });
+      if (!ok) {
+        if (!existsRef.current) toast('빈 메모는 완료할 수 없어요.');
+        return;
+      }
+      const { text } = snapshot();
+      const s = settingsRef.current;
+      if (s.autoAnalyze) {
+        setPanel('insight');
+        await runAnalysis(memoId, { text, title: titleRef.current });
+      } else {
+        toast('완료했어요. 요약 · 분류는 오른쪽 도구에서 직접 실행할 수 있어요.');
+      }
+      if (s.autoStudy) runStudy(memoId, { text });
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const remove = async () => {
+    setMenuOpen(false);
+    if (!confirm('이 메모를 삭제할까? 되돌릴 수 없어.')) return;
+    savedVersionRef.current = versionRef.current; // 나갈 때 저장/확인하지 않게
+    if (existsRef.current) await store.deleteMemo(memoId);
+    navigate(memo?.categoryId ? `/c/${memo.categoryId}` : '/');
+  };
+
+  const onTool = async (tool) => {
+    if (!editor) return;
+    if (tool.id === 'image') { pickImage(); return; }
+    if (tool.id === 'table') { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); return; }
+    setPanel((p) => (p === tool.id ? null : tool.id));
+  };
+
+  // ------------------------------------------------------------
+  if (loaded && !memo && !isNewParam && !existsRef.current) {
+    return (
+      <div className="page"><div className="empty"><p className="empty-title">메모를 찾을 수 없어요</p><a className="btn" href="#/">모든 메모로</a></div></div>
+    );
+  }
+
+  const category = categories.find((c) => c.id === (memo?.categoryId ?? (existsRef.current ? null : presetCategory)));
+  const working = busy[memoId];
+  const currentText = () => snapshot()?.text || '';
+
+  return (
+    <div className={`memo-layout${panel ? ' with-panel' : ''}`}>
+      <div className="memo-main">
+        <div className="memo-topbar">
+          <nav className="crumbs">
+            <a href="#/">모든 메모</a>
+            <span>/</span>
+            {category ? <a href={`#/c/${category.id}`}>{category.name}</a> : <span>미분류</span>}
+          </nav>
+          <div className="topbar-right">
+            <SaveIndicator state={saveState} savedAt={savedAt} autoSave={settings.autoSave} isGuest={isGuest} />
+            {working && <span className="topbar-flag"><Spinner size={11} /> {working === 'study' ? '학습 카드 만드는 중' : 'AI 정리 중'}</span>}
+            <button className={`icon-btn${formatOpen ? ' on' : ''}`} onClick={() => setFormatOpen((v) => !v)} title="서식 도구" aria-pressed={formatOpen}>
+              <Type size={16} />
+            </button>
+            {!settings.autoSave && (
+              <button className="btn" onClick={() => save().then((ok) => ok && toast('저장했어요'))} disabled={saveState === 'saving'}>저장</button>
+            )}
+            <button className="btn btn-primary" onClick={complete} disabled={completing || !ready}>
+              {completing ? <Spinner size={12} /> : <Check size={15} />} 작성 완료
+            </button>
+            <div className="rel">
+              <button className="icon-btn" onClick={() => setMenuOpen((v) => !v)} aria-label="더보기"><Ellipsis size={16} /></button>
+              <Popover open={menuOpen} onClose={() => setMenuOpen(false)} align="right">
+                <button className="menu-item danger" onClick={remove}><Trash2 size={15} /> 메모 삭제</button>
+              </Popover>
+            </div>
+          </div>
+        </div>
+
+        {formatOpen && editor && <div className="format-wrap"><FormatBar editor={editor} /></div>}
+
+        <article className="memo-doc">
+          <textarea
+            className="memo-title" rows={1} placeholder="제목 없음" value={title}
+            onChange={onTitleChange}
+            onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`; }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus('start'); } }}
+          />
+          <div className="props">
+            <div className="prop">
+              <span className="prop-label">카테고리</span>
+              <CategorySelect
+                value={category?.id || null}
+                suggestion={memo?.ai?.category}
+                onChange={async (categoryId) => { if (await ensureSaved()) moveMemoToCategory(memoId, categoryId); }}
+              />
+            </div>
+            <div className="prop">
+              <span className="prop-label">태그</span>
+              <TagEditor
+                tags={memo?.tags || []}
+                onChange={async (tags) => { if (await ensureSaved()) store.patchMemo(memoId, { tags }); }}
+              />
+            </div>
+            {memo?.ai?.summary && (
+              <div className="prop prop-summary">
+                <span className="prop-label">요약</span>
+                <button className="prop-summary-text" onClick={() => setPanel('insight')}>{memo.ai.summary}</button>
+              </div>
+            )}
+          </div>
+          {editor && <SelectionBubble editor={editor} />}
+          <EditorContent editor={editor} className="editor-host" />
+          {slash.element}
+        </article>
+      </div>
+
+      <div className="tool-rail" role="toolbar" aria-label="부가 도구">
+        {TOOLS.map((tool) => (
+          <button
+            key={tool.id} className={`rail-btn${panel === tool.id ? ' on' : ''}`}
+            onClick={() => onTool(tool)} title={tool.label} aria-label={tool.label}
+          >
+            <tool.icon size={17} />
+            <span className="rail-label">{tool.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {panel && (
+        <aside className="side-panel">
+          {panel === 'insight' && (
+            <InsightPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
+              onRun={async () => { if (await ensureSaved()) runAnalysis(memoId, { text: currentText(), title: titleRef.current }, { force: true }); }} />
+          )}
+          {panel === 'spell' && <SpellPanel editor={editor} getText={currentText} onClose={() => setPanel(null)} />}
+          {panel === 'tidy' && <TidyPanel editor={editor} onClose={() => setPanel(null)} />}
+          {panel === 'study' && (
+            <StudyPanel memo={memo} memoId={memoId} onClose={() => setPanel(null)}
+              onRun={async () => { if (await ensureSaved()) runStudy(memoId, { text: currentText() }, { force: true }); }} />
+          )}
+        </aside>
+      )}
+
+      <input
+        ref={fileInputRef} type="file" accept="image/*" multiple hidden
+        onChange={(e) => { insertImageFiles([...e.target.files], editor); e.target.value = ''; }}
+      />
+    </div>
+  );
+}
+
+function SaveIndicator({ state, savedAt, autoSave, isGuest }) {
+  const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+  let text = '';
+  if (state === 'saving') text = '저장 중…';
+  else if (state === 'error') text = '저장 실패';
+  else if (state === 'dirty') text = autoSave ? '편집 중' : '저장 안 됨';
+  else if (state === 'saved') text = isGuest ? '이 탭에 저장됨' : `저장됨 ${formatTime(savedAt)}`;
+  else text = autoSave ? '자동 저장 켜짐' : (isGuest ? '게스트 · 자동 저장 없음' : '수동 저장');
+  return (
+    <span className={`save-ind save-${state}`}>
+      {offline ? <CloudOff size={13} /> : <Cloud size={13} />}
+      {offline && state !== 'saved' ? `오프라인 · ${text}` : text}
+    </span>
+  );
+}
