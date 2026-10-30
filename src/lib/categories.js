@@ -13,3 +13,15 @@ export function findCategoryByName(categories, name) {
   const key = normalizeName(name).toLowerCase();
   return categories.find((c) => normalizeName(c.name).toLowerCase() === key) || null;
 }
+
+// AI가 기존 카테고리와 거의 같은 이름(띄어쓰기·대소문자 차이, 한쪽이 다른 쪽을 포함)을 새로 만들려 하면 기존 것으로 합친다
+export function matchExistingCategory(categories, name) {
+  const exact = findCategoryByName(categories, name);
+  if (exact) return exact;
+  const key = normalizeName(name).replace(/\s/g, '').toLowerCase();
+  if (key.length < 2) return null;
+  return categories.find((c) => {
+    const other = normalizeName(c.name).replace(/\s/g, '').toLowerCase();
+    return other.length >= 2 && (other === key || other.includes(key) || key.includes(other));
+  }) || null;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { X, RefreshCw, Sparkles, ArrowRight, Undo2 } from 'lucide-react';
+import { X, RefreshCw, Sparkles, ArrowRight, Undo2, House, SquarePen } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { spellCheck, tidyMemo, hasGeminiKey } from '../lib/gemini';
 import { findCategoryByName } from '../lib/categories';
@@ -15,7 +15,7 @@ function PanelHead({ title, onClose, children }) {
       <h3>{title}</h3>
       <div className="panel-head-actions">
         {children}
-        <button className="icon-btn icon-btn-sm" onClick={onClose} aria-label="닫기"><X size={15} /></button>
+        {onClose && <button className="icon-btn icon-btn-sm" onClick={onClose} aria-label="닫기"><X size={15} /></button>}
       </div>
     </div>
   );
@@ -29,7 +29,8 @@ function KeyMissing() {
 // ------------------------------------------------------------
 //  요약 · 분류
 // ------------------------------------------------------------
-export function InsightPanel({ memo, memoId, onClose, onRun }) {
+// 요약 패널은 닫기(X) 대신 아래쪽 '홈으로 / 새 메모' 버튼으로 다음 동작을 고른다
+export function InsightPanel({ memo, memoId, onRun }) {
   const { busy, categories, store, applySuggestedCategory } = useApp();
   const ai = memo?.ai;
   const running = busy[memoId] === 'analyze';
@@ -48,7 +49,7 @@ export function InsightPanel({ memo, memoId, onClose, onRun }) {
 
   return (
     <div className="panel">
-      <PanelHead title="요약 · 분류" onClose={onClose}>
+      <PanelHead title="요약 · 분류">
         <button className="btn btn-sm" onClick={onRun} disabled={running}>
           {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {ai ? '다시 분석' : '분석하기'}
         </button>
@@ -96,6 +97,11 @@ export function InsightPanel({ memo, memoId, onClose, onRun }) {
           <p className="panel-meta">{ai.model} · {formatRelative(ai.analyzedAt)}</p>
         </>
       )}
+
+      <div className="panel-footer">
+        <button className="btn" onClick={() => navigate('/')}><House size={14} /> 홈으로 돌아가기</button>
+        <button className="btn btn-primary" onClick={() => navigate('/new')}><SquarePen size={14} /> 새 메모 작성</button>
+      </div>
     </div>
   );
 }

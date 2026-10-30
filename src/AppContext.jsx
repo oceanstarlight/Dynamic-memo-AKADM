@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createFirestoreStore, createMemoryStore } from './lib/store';
 import { DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings } from './lib/settings';
 import { analyzeMemo, makeStudySet, GEMINI_MODEL } from './lib/gemini';
-import { findCategoryByName, normalizeName, pickColor } from './lib/categories';
+import { findCategoryByName, matchExistingCategory, normalizeName, pickColor } from './lib/categories';
 import { hashText } from './lib/text';
 
 const AppContext = createContext(null);
@@ -100,7 +100,8 @@ export function AppProvider({ session, onSignOut, children }) {
   }, [store]);
 
   // ---------------- AI: 분석 ----------------
-  const runAnalysis = useCallback(async (memoId, { text, title }, { force = false } = {}) => {
+  // categorize: 설정과 상관없이 카테고리 적용 여부를 지정 (파일 'AI 자동 분류'처럼 사용자가 명시적으로 요청한 경우)
+  const runAnalysis = useCallback(async (memoId, { text, title }, { force = false, categorize, silent = false } = {}) => {
     if ((text || '').trim().length < MIN_AI_LENGTH) {
       if (force) toast(`본문이 너무 짧아서 분석하지 않았어요 (${MIN_AI_LENGTH}자 이상).`);
       return null;
@@ -111,8 +112,18 @@ export function AppProvider({ session, onSignOut, children }) {
 
     setBusyFor(memoId, 'analyze');
     try {
-      const result = await analyzeMemo({ text, categories: catsRef.current });
+      // 카테고리마다 최근 메모 제목 몇 개를 같이 보내서 기존 카테고리에 잘 들어가게 한다
+      const categoryHints = catsRef.current.map((c) => ({
+        name: c.name,
+        examples: memosRef.current.filter((m) => m.categoryId === c.id && m.id !== memoId && m.title).slice(0, 3).map((m) => m.title.slice(0, 30)),
+      }));
+      const result = await analyzeMemo({ text, categories: categoryHints });
       const { title: aiTitle, ...ai } = result;
+      const match = matchExistingCategory(catsRef.current, ai.category);
+      if (match) {
+        ai.category = match.name;
+        ai.isNewCategory = false;
+      }
       const s = effectiveSettings;
       const patch = {
         ai: { ...ai, title: aiTitle, sourceHash, model: GEMINI_MODEL, analyzedAt: Date.now() },
@@ -123,18 +134,19 @@ export function AppProvider({ session, onSignOut, children }) {
 
       let placedName = null;
       // 이미 사용자가 직접 카테고리를 정한 메모는 건드리지 않는다
-      if (s.autoCategorize && !memo?.categoryManual) {
+      if ((categorize ?? s.autoCategorize) && !memo?.categoryManual) {
         const categoryId = await ensureCategory(ai.category, { createdBy: 'ai' });
         patch.categoryId = categoryId;
         placedName = ai.category;
       }
       await store.patchMemo(memoId, patch);
 
-      if (placedName) {
+      // silent면 결과 안내는 호출한 쪽(파일 불러오기 창 등)이 한다
+      if (!silent && placedName) {
         toast(`‘${placedName}’에 분류했어요${ai.isNewCategory ? ' · 새 카테고리' : ''}`, {
           action: { label: '열기', href: `/m/${memoId}` },
         });
-      } else {
+      } else if (!silent) {
         toast(`AI 제안: ‘${ai.category}’ — 메모 오른쪽 패널에서 적용할 수 있어요.`);
       }
       return patch.ai;
