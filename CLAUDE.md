@@ -15,6 +15,7 @@ AI 메모 웹앱 **Dynamic Memo** (React + Tiptap + Firebase + Gemini, GitHub Pa
 
 ## 개발 환경
 - Node.js 22, npm. 개발 서버는 `npm run dev`, 빌드는 `npm run build`
+- 크롬 확장은 `npm run build:ext`(→ `dist-extension/`), zip은 `npm run zip:ext`. 자세한 내용은 [EXTENSION.md](EXTENSION.md)
 - 로컬 키: `.env.local`의 `VITE_GEMINI_API_KEY`. 배포에서는 GitHub Secret `GEMINI_API_KEY`가 빌드할 때 주입된다.
 - 테스트: Playwright(미리 설치된 Chromium)를 쓴다. 게스트 로그인과 `devices['iPhone 13']`으로 확인하고, Gemini 응답은 `page.route`로 가짜 응답을 넣는다.
 

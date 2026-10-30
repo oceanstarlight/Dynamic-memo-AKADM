@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:ext": "vite build --config vite.ext.config.js --watch --mode development",
+    "build:ext": "vite build --config vite.ext.config.js",
+    "zip:ext": "npm run build:ext && node scripts/zip-extension.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

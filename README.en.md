@@ -28,6 +28,7 @@
 - [How to use](#how-to-use)
 - [Getting started](#getting-started)
 - [Deployment](#deployment)
+- [Chrome extension](#chrome-extension)
 - [Project structure](#project-structure)
 - [Data model](#data-model)
 - [Tech stack](#tech-stack)
@@ -151,6 +152,26 @@ Pushing to `main` triggers GitHub Actions, which builds the app and deploys it t
    - Publish [`firestore.rules`](firestore.rules).
 4. **Protect the key**: this is a static site, so the key ships in the bundle. Restrict it in the Google Cloud console with an **HTTP referrer restriction** (`https://oceanstarlight.github.io/*`).
 
+## Chrome extension
+
+Use the same account and memos right in your browser.
+
+| Feature | How |
+|---|---|
+| Quick memo | Toolbar icon (or `Alt+Shift+M`) → type, press Enter → saved and auto-categorized |
+| Save web text | Select text → right-click → *Save selection to Dynamic Memo* (page title and link kept as the source) |
+| Save page | Right-click → *Save this page to Dynamic Memo* |
+| Full app | The whole web app in Chrome's side panel |
+
+- Install from the Chrome Web Store, or grab the zip from [Releases](https://github.com/oceanstarlight/Dynamic-memo-AKADM/releases) → `chrome://extensions` → Developer mode → *Load unpacked*
+- Sign-in: only the **Google account** signed in to Chrome (GitHub accounts: use the web app)
+- Build, release and maintenance guide (Korean): [EXTENSION.md](EXTENSION.md)
+
+```bash
+npm run build:ext   # dist-extension/ (load unpacked)
+npm run zip:ext     # release/*.zip
+```
+
 ## Project structure
 
 ```
@@ -190,5 +211,7 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 - [plans.md](plans.md): work log and roadmap (Korean)
 - [PREF.md](PREF.md): code and feature index (Korean)
 - [CLAUDE.md](CLAUDE.md): rules and environment for AI coding sessions
+- [EXTENSION.md](EXTENSION.md): Chrome extension build, release, install and maintenance (Korean)
+- [PRIVACY.md](PRIVACY.md): privacy policy
 
 <sub>Rebuilt from the features of [my-memo-app](https://github.com/oceanstarlight/my-memo-app). No license has been chosen yet.</sub>

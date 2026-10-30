@@ -49,6 +49,7 @@
 | 스타일 전체 | `src/styles.css` | 아래 7절 참고 |
 | 배포 | `.github/workflows/deploy.yml` | `GEMINI_API_KEY` 주입 |
 | Firestore 보안 규칙 | `firestore.rules` | |
+| **크롬 확장** (팝업 · 사이드 패널 · 우클릭 저장) | `extension/`, `vite.ext.config.js` | 아래 9절 |
 
 ## 1. 라우트 (해시 기반, `src/App.jsx` → `Shell`)
 
@@ -79,7 +80,7 @@
 | `ensureCategory(name)` | 이름으로 찾고, 없으면 생성 |
 | `moveMemoToCategory` / `applySuggestedCategory` | 직접 이동(`categoryManual: true`) / AI 제안 적용 |
 | `removeMemo` · `restoreMemo` · `togglePin` | 휴지통(설정 `useTrash`) 또는 즉시 삭제, 복원, 고정 |
-| `quickCapture(text)` | 빠른 메모 저장 + 자동 분류 |
+| `quickCapture(text, {html, source, wait})` | 빠른 메모 저장 + 자동 분류 (`html`·`source`·`wait`는 확장에서 사용) |
 | `MIN_AI_LENGTH` (= 20) | 이보다 짧으면 AI를 부르지 않음 |
 
 ## 3. 메모 편집 화면 (`src/editor/MemoView.jsx`)
@@ -161,3 +162,23 @@ localStorage 키: `dm-settings`, `dm-view`(보드/목록), `dm-sb-open`(사이�
 | 공통 상단 바 / 신규 기능 | `.pagebar`, `.quick`, `.related`, `.overview`, `.ask-*`, `.todo` |
 | Responsive (≤860px) | 사이드바는 서랍, 도구 레일은 하단, 패널은 바텀 시트, `.panel-scrim` |
 | `@media (hover: hover)` | **모든 `:hover` 규칙은 여기에** (터치 기기에서 두 번 눌러야 열리는 문제 방지) |
+
+## 9. 크롬 확장 (`extension/`, 가이드는 [EXTENSION.md](EXTENSION.md))
+
+| 찾는 것 | 파일 | 시작점 |
+|---|---|---|
+| 빌드 설정 · manifest 생성 · 모듈 바꿔 끼우기 | `vite.ext.config.js` | `manifest`, `resolve.alias` |
+| 사이드 패널 진입점 (웹앱 `App` 전체) | `extension/src/sidepanel.jsx` | `RouteInbox` |
+| 우클릭으로 담은 글 → 메모 저장 | `extension/src/ClipInbox.jsx` | `clipToMemo`, `drain` |
+| 툴바 팝업 (빠른 메모) | `extension/src/popup.jsx`, `popup.css` | `QuickPopup`, `openPanel` |
+| 확장 로그인 화면 | `extension/src/ExtLogin.jsx` | `describe` |
+| chrome API 모음 | `extension/src/chromeApi.js` | `signInWithChromeGoogle`, `openSidePanel`, `takeClips` |
+| 서비스 워커 (우클릭 메뉴) | `extension/public/background.js` | `collect`, `addClip` |
+| 배포 zip (스토어용은 `key` 제거) | `scripts/zip-extension.mjs` | |
+| 릴리스 워크플로 | `.github/workflows/extension.yml` | `ext-v*` 태그 |
+
+- 빌드할 때 `firebase/auth` → `firebase/auth/web-extension`, `./components/Login` → `ExtLogin`으로 바뀝니다. 웹앱 코드에서 이 두 import 경로를 바꾸면 확장 빌드도 같이 확인하세요
+- 웹앱 쪽 연결점: `App({ extras })`(AppProvider 안에 끼워 넣기), `quickCapture(text, { html, source, wait })`
+- 저장소 키: `chrome.storage.local` `dm-clips`(우클릭 대기열, Web Lock `dm-clips`로 보호), `chrome.storage.session` `dm-open-route`(사이드 패널이 열 화면)
+- 빌드 환경 변수: `EXT_OAUTH_CLIENT_ID`, `EXT_PUBLIC_KEY`(GitHub Variables), Gemini 키는 `GEMINI_API_KEY_EXT`가 있으면 우선 (확장 요청엔 Referer가 없어 리퍼러 제한 키는 막힘)
+- 웹 글 메모의 `source`: `{ name: 페이지 제목, kind: 'web', url }`

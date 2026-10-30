@@ -26,6 +26,7 @@
 - [사용법](#사용법)
 - [시작하기 (개발)](#시작하기-개발)
 - [배포 설정](#배포-설정)
+- [크롬 확장](#크롬-확장)
 - [프로젝트 구조](#프로젝트-구조)
 - [데이터 구조](#데이터-구조)
 - [기술 스택](#기술-스택)
@@ -160,6 +161,26 @@ npm run dev
    - Firestore → 규칙: [`firestore.rules`](firestore.rules) 내용 게시
 4. **키 보호**: 정적 사이트라서 키가 번들에 포함됩니다. Google Cloud 콘솔에서 해당 키에 **HTTP 리퍼러 제한**(`https://oceanstarlight.github.io/*`)을 걸어 주세요.
 
+## 크롬 확장
+
+웹앱과 같은 계정 · 같은 메모를 브라우저에서 바로 씁니다.
+
+| 기능 | 사용법 |
+|---|---|
+| 빠른 메모 | 툴바 아이콘(또는 `Alt+Shift+M`) → 적고 Enter → 저장 + AI 자동 분류 |
+| 웹 글 저장 | 글 선택 → 우클릭 → *선택한 글을 Dynamic Memo에 저장* (제목 · 링크를 출처로 함께 저장) |
+| 페이지 저장 | 우클릭 → *이 페이지를 Dynamic Memo에 저장* |
+| 전체 앱 | 사이드 패널에서 웹앱 전체 사용 |
+
+- 설치: Chrome 웹 스토어, 또는 [Releases](https://github.com/oceanstarlight/Dynamic-memo-AKADM/releases)의 zip → `chrome://extensions` → 개발자 모드 → *압축해제된 확장 프로그램 로드*
+- 로그인: Chrome에 로그인된 **Google 계정**만 지원합니다 (GitHub 계정은 웹앱 이용)
+- 빌드 · 배포 · 관리 전체 과정: [EXTENSION.md](EXTENSION.md)
+
+```bash
+npm run build:ext   # dist-extension/ (개발자 모드로 로드)
+npm run zip:ext     # release/*.zip
+```
+
 ## 프로젝트 구조
 
 ```
@@ -195,11 +216,13 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 | AI | Gemini `gemini-3.5-flash-lite` (JSON 스키마 응답) |
 | 음성 | Web Speech API, 미지원 브라우저는 MediaRecorder + Gemini |
 | 기타 | marked(md→HTML), turndown(HTML→md), fflate(zip) |
-| 배포 | GitHub Actions → GitHub Pages |
+| 배포 | GitHub Actions → GitHub Pages, 크롬 확장(MV3) → GitHub Release · 웹 스토어 |
 
 ## 관련 문서
 - [plans.md](plans.md): 작업 기록과 남은 일
 - [PREF.md](PREF.md): 코드 · 기능 색인
 - [CLAUDE.md](CLAUDE.md): AI 작업 세션용 핵심 규칙
+- [EXTENSION.md](EXTENSION.md): 크롬 확장 빌드 · 배포 · 설치 · 관리
+- [PRIVACY.md](PRIVACY.md): 개인정보처리방침
 
 <sub>이 프로젝트는 [my-memo-app](https://github.com/oceanstarlight/my-memo-app)의 기능을 바탕으로 새로 만들었습니다. 아직 라이선스는 정하지 않았습니다.</sub>

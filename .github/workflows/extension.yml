@@ -1,0 +1,56 @@
+name: Build Chrome Extension
+
+# ext-v0.1.0 같은 태그를 푸시하면 zip을 만들어 GitHub Release에 올린다.
+# 태그 없이 Actions 탭에서 직접 실행하면 zip을 Artifacts로만 남긴다.
+on:
+  push:
+    tags: ['ext-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/ext-v')
+        run: |
+          TAG="${GITHUB_REF_NAME#ext-v}"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "태그($TAG)와 package.json version($VERSION)이 다릅니다." && exit 1
+          fi
+
+      - name: Build and zip
+        run: npm run zip:ext
+        env:
+          # 확장 요청에는 Referer가 없어서, 웹용 키에 HTTP 리퍼러 제한이 있으면 막힌다.
+          # 그럴 때는 확장 전용 키를 GEMINI_API_KEY_EXT로 등록한다 (없으면 웹과 같은 키 사용)
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_EXT || secrets.GEMINI_API_KEY }}
+          VITE_GEMINI_MODEL: gemini-3.5-flash-lite
+          # 공개값이라 Secret이 아니라 Variables에 둔다 (Settings → Secrets and variables → Actions → Variables)
+          EXT_OAUTH_CLIENT_ID: ${{ vars.EXT_OAUTH_CLIENT_ID }}
+          EXT_PUBLIC_KEY: ${{ vars.EXT_PUBLIC_KEY }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dynamic-memo-extension
+          path: release/*.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/ext-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.zip
+          body: |
+            - `dynamic-memo-ext-*-store.zip`: Chrome 웹 스토어 업로드용
+            - `dynamic-memo-ext-*.zip`: 압축을 풀어 `chrome://extensions` → '압축해제된 확장 프로그램 로드'로 설치

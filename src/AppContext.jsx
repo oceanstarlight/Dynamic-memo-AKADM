@@ -225,16 +225,19 @@ export function AppProvider({ session, onSignOut, children }) {
   const togglePin = useCallback((memo) => store.patchMemo(memo.id, { pinned: !memo.pinned }), [store]);
 
   // ---------------- 빠른 메모 ----------------
-  const quickCapture = useCallback(async (raw) => {
+  // html · source: 확장에서 웹 글을 담을 때 출처 링크를 함께 저장. wait: AI 정리가 끝날 때까지 기다림 (확장 팝업)
+  const quickCapture = useCallback(async (raw, { html, source, wait = false } = {}) => {
     const text = raw.trim();
     if (!text) return null;
     const memoId = store.newMemoId();
-    await store.saveMemo(memoId, { title: '', html: plainToHtml(text), text, status: 'done' }, { isNew: true });
+    await store.saveMemo(memoId, { title: '', html: html || plainToHtml(text), text, status: 'done', ...(source && { source }) }, { isNew: true });
     const s = effectiveSettings;
     if (s.autoAnalyze) {
-      runAnalysis(memoId, { text, title: '' }).then((ai) => {
-        if (ai && s.autoStudy) runStudy(memoId, { text });
+      const done = runAnalysis(memoId, { text, title: '' }).then((ai) => {
+        if (ai && s.autoStudy) return runStudy(memoId, { text });
+        return null;
       });
+      if (wait) await done;
     } else {
       toast('저장했어요', { action: { label: '열기', href: `/m/${memoId}` } });
     }

@@ -19,7 +19,8 @@ import AskView from './components/AskView';
 import TodoView from './components/TodoView';
 import TrashView from './components/TrashView';
 
-export default function App() {
+// extras: 확장(사이드 패널)이 앱 안에 끼워 넣는 컴포넌트 (우클릭으로 담은 글 저장 등)
+export default function App({ extras = null }) {
   // session: undefined(확인 중) | null(로그아웃) | { kind: 'user', user } | { kind: 'guest' }
   const [session, setSession] = useState(undefined);
 
@@ -42,6 +43,7 @@ export default function App() {
   return (
     <AppProvider key={session.kind === 'guest' ? 'guest' : session.user.uid} session={session} onSignOut={handleSignOut}>
       <Shell />
+      {extras}
     </AppProvider>
   );
 }
