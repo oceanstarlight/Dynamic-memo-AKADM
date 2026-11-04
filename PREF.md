@@ -20,7 +20,8 @@
 | 카테고리 선택 · 태그 편집 (메모 속성) | `src/editor/Properties.jsx` | `CategorySelect`, `TagEditor` |
 | 서식 바 · 선택 메뉴 · `/` 메뉴 · 표/사진 메뉴 | `src/editor/FormatTools.jsx` | `FormatBar`, `SelectionBubble`, `useSlashMenu`, `BlockBubble` |
 | 슬래시 블록 목록 · 하이라이트/글자 색 | `src/editor/blocks.js` | `BLOCKS`, `HIGHLIGHTS`, `TEXT_COLORS` |
-| Tiptap 확장 (주석, 구분선 굵기), HTML 정제 | `src/editor/extensions.js` | `buildExtensions`, `Annotation`, `sanitizeHtml` |
+| Tiptap 확장 (주석, 구분선 굵기, Tab 들여쓰기), HTML 정제 | `src/editor/extensions.js` | `buildExtensions`, `Annotation`, `TabIndent`, `sanitizeHtml` |
+| Tab 들여쓰기 규칙 (공백 4칸, textarea용) | `src/lib/indent.js` | `indentTextarea`, `INDENT`, `SOFT_INDENT` |
 | 요약 · 맞춤법 · AI 정리 · 학습 카드 패널 | `src/editor/AiPanels.jsx` | `InsightPanel`, `SpellPanel`, `TidyPanel`(`run` 정리 전 코멘트, `refine` 결과에 추가 코멘트), `StudyPanel` |
 | **음성 메모** (실시간 / 녹음 fallback) | `src/editor/VoicePanel.jsx` | `VoicePanel`, `VOICE_MODE`, `initialMode` |
 | **AI 입력 예산** (긴 메모 자르기) | `src/lib/gemini.js` | `clipText`, `*_BUDGET` |
@@ -140,7 +141,7 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 | `autoCategorize` | true | 분류 자동 적용 (끄면 제안만) |
 | `autoTitle` | true | 빈 제목 자동 채우기 |
 | `autoStudy` | true | 작성 완료 시 학습 카드 |
-| `quickCapture` · `voiceMemo` · `relatedMemos` · `askNotes` · `categoryOverview` · `todoView` · `useTrash` | true | 추가 기능 표시 여부 |
+| `quickCapture` · `voiceMemo` · `relatedMemos` · `askNotes` · `categoryOverview` · `todoView` · `useTrash` · `tabIndent` | true | 추가 기능 표시 여부 |
 | `theme` | `'system'` | `'light'` / `'dark'` |
 
 localStorage 키: `dm-settings`, `dm-view`(보드/목록), `dm-sb-open`(사이드바 펼친 카테고리), `dm-voice-mode`(실시간 인식이 막힌 기기면 `record`)

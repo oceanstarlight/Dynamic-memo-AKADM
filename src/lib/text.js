@@ -11,7 +11,7 @@ export function escapeHtml(text) {
 // 이전 앱(my-memo-app)의 plain text 메모를 에디터용 HTML로 변환
 export function plainToHtml(text) {
   if (!text) return '';
-  return text.split(/\n{2,}/).map((block) => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`).join('');
+  return text.split(/\n{2,}/).map((block) => `<p>${escapeHtml(block).replace(/^ +/gm, (m) => '&nbsp;'.repeat(m.length)).replace(/\n/g, '<br>')}</p>`).join('');
 }
 
 export function toDate(ts) {
