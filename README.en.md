@@ -69,7 +69,7 @@ Every automation is on by default, and **each one can be turned off in Settings 
 <details>
 <summary><b>AI tools (right side of the note; bottom on mobile)</b></summary>
 
-- Summary & category, spell check, tidy-up (preview, then apply or undo), study cards, voice memo
+- Summary & category, spell check, tidy-up (optional comment with your own request, refine the preview with follow-up comments, then apply or undo), study cards, voice memo
 - Notes under 20 characters skip the AI call and show a "too short to summarize" message
 - Voice memo: devices that block live dictation (such as some iPhone Safari setups) switch automatically to recording followed by AI transcription (up to 5 minutes)
 - Long notes are trimmed to what each feature needs before they are sent to the AI (images are never sent)

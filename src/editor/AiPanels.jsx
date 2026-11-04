@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { X, RefreshCw, Sparkles, ArrowRight, Undo2, House, SquarePen } from 'lucide-react';
+import { X, RefreshCw, Sparkles, ArrowRight, Undo2, House, SquarePen, MessageSquare } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { spellCheck, tidyMemo, hasGeminiKey, SPELL_TEXT_BUDGET } from '../lib/gemini';
+import { spellCheck, tidyMemo, hasGeminiKey, SPELL_TEXT_BUDGET, TIDY_COMMENT_MAX } from '../lib/gemini';
 import { findCategoryByName } from '../lib/categories';
 import { formatRelative, hashText } from '../lib/text';
 import { buildPreviewExtensions, replaceTextInDoc } from './extensions';
@@ -198,53 +198,106 @@ export function TidyPanel({ editor, onClose }) {
   const [result, setResult] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [comment, setComment] = useState('');   // 정리 전 요청 (선택)
+  const [followUp, setFollowUp] = useState(''); // 미리보기 결과에 대한 추가 요청
   const preview = useEditor({ extensions: buildPreviewExtensions(), editable: false, content: '' }, []);
 
   useEffect(() => {
     if (preview && result) preview.commands.setContent(result.html, { emitUpdate: false });
   }, [preview, result]);
 
-  const run = async () => {
-    if (editor.isEmpty) { setError('정리할 내용이 없어요.'); return; }
+  // source: 정리할 HTML, request: 이번에 반영할 코멘트
+  const call = async (source, request) => {
     setRunning(true);
     setError('');
-    setResult(null);
     try {
-      setResult(await tidyMemo(editor.getHTML()));
+      setResult(await tidyMemo(source, { comment: request }));
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     } finally {
       setRunning(false);
     }
+  };
+
+  const run = () => {
+    if (editor.isEmpty) { setError('정리할 내용이 없습니다.'); return; }
+    setResult(null);
+    setFollowUp('');
+    call(editor.getHTML(), comment);
+  };
+
+  // 지금 미리보기 결과를 바탕으로 추가 요청만 반영한다
+  const refine = async () => {
+    const request = followUp.trim();
+    if (!request || !preview) return;
+    if (await call(preview.getHTML(), request)) setFollowUp('');
   };
 
   const apply = () => {
     // 미리보기 에디터가 스키마로 걸러낸 HTML을 그대로 쓴다
     editor.chain().focus().setContent(preview.getHTML(), { emitUpdate: true }).run();
     setResult(null);
-    toast('본문을 정리했어요', { action: { label: '되돌리기', onClick: () => editor.chain().focus().undo().run() } });
+    setFollowUp('');
+    toast('본문을 정리했습니다', { action: { label: '되돌리기', onClick: () => editor.chain().focus().undo().run() } });
+  };
+
+  const onKey = (submit) => (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
   };
 
   return (
     <div className="panel">
       <PanelHead title="AI 정리" onClose={onClose}>
         <button className="btn btn-sm" onClick={run} disabled={running}>
-          {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {result ? '다시' : '정리하기'}
+          {running ? <Spinner size={11} /> : <RefreshCw size={13} />} {result ? '처음부터 다시' : '정리하기'}
         </button>
       </PanelHead>
       <KeyMissing />
+      {!result && (
+        <>
+          <textarea
+            className="tidy-comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={onKey(run)}
+            maxLength={TIDY_COMMENT_MAX}
+            rows={3}
+            disabled={running}
+            placeholder="원하는 방향이 있으면 적어 주세요 (선택). 예: 표로 정리해 주세요, 3줄로 줄여 주세요"
+          />
+          {!running && <p className="panel-empty">{comment.trim()
+            ? '적어 주신 요청대로 다듬습니다. 적용 전에 미리 볼 수 있습니다.'
+            : '비워 두면 내용은 그대로 두고 제목, 목록, 강조 같은 구조만 다듬습니다. 적용 전에 미리 볼 수 있습니다.'}</p>}
+        </>
+      )}
       {error && <p className="panel-error">{error}</p>}
-      {!result && !running && <p className="panel-empty">내용은 그대로 두고 제목, 목록, 강조 같은 구조만 다듬어요. 적용 전에 미리 볼 수 있어요.</p>}
       {running && <div className="panel-loading"><Spinner /> 다듬는 중…</div>}
       {result && (
         <>
           {result.note && <p className="panel-note">{result.note}</p>}
           <div className="tidy-preview"><EditorContent editor={preview} className="prose prose-sm" /></div>
-          <div className="issue-actions">
-            <button className="btn btn-sm btn-primary" onClick={apply}>본문에 적용</button>
-            <button className="btn btn-sm btn-ghost" onClick={() => setResult(null)}>취소</button>
+          <div className="tidy-refine">
+            <textarea
+              className="tidy-comment"
+              value={followUp}
+              onChange={(e) => setFollowUp(e.target.value)}
+              onKeyDown={onKey(refine)}
+              maxLength={TIDY_COMMENT_MAX}
+              rows={2}
+              disabled={running}
+              placeholder="결과에 더 바꾸고 싶은 점을 적어 주세요. 예: 소제목을 빼 주세요"
+            />
+            <button className="btn btn-sm" onClick={refine} disabled={running || !followUp.trim()}>
+              <MessageSquare size={13} /> 코멘트 반영
+            </button>
           </div>
-          <p className="panel-meta"><Undo2 size={11} /> 적용 후에도 Ctrl+Z로 되돌릴 수 있어요.</p>
+          <div className="issue-actions">
+            <button className="btn btn-sm btn-primary" onClick={apply} disabled={running}>본문에 적용</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => { setResult(null); setFollowUp(''); }} disabled={running}>취소</button>
+          </div>
+          <p className="panel-meta"><Undo2 size={11} /> 적용 후에도 Ctrl+Z로 되돌릴 수 있습니다.</p>
         </>
       )}
     </div>

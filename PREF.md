@@ -21,7 +21,7 @@
 | 서식 바 · 선택 메뉴 · `/` 메뉴 · 표/사진 메뉴 | `src/editor/FormatTools.jsx` | `FormatBar`, `SelectionBubble`, `useSlashMenu`, `BlockBubble` |
 | 슬래시 블록 목록 · 하이라이트/글자 색 | `src/editor/blocks.js` | `BLOCKS`, `HIGHLIGHTS`, `TEXT_COLORS` |
 | Tiptap 확장 (주석, 구분선 굵기), HTML 정제 | `src/editor/extensions.js` | `buildExtensions`, `Annotation`, `sanitizeHtml` |
-| 요약 · 맞춤법 · AI 정리 · 학습 카드 패널 | `src/editor/AiPanels.jsx` | `InsightPanel`, `SpellPanel`, `TidyPanel`, `StudyPanel` |
+| 요약 · 맞춤법 · AI 정리 · 학습 카드 패널 | `src/editor/AiPanels.jsx` | `InsightPanel`, `SpellPanel`, `TidyPanel`(`run` 정리 전 코멘트, `refine` 결과에 추가 코멘트), `StudyPanel` |
 | **음성 메모** (실시간 / 녹음 fallback) | `src/editor/VoicePanel.jsx` | `VoicePanel`, `VOICE_MODE`, `initialMode` |
 | **AI 입력 예산** (긴 메모 자르기) | `src/lib/gemini.js` | `clipText`, `*_BUDGET` |
 | 관련 메모 추천 | `src/components/RelatedMemos.jsx` | `score` |
@@ -105,7 +105,7 @@
 | `generateJson({system,user,schema})` | JSON 스키마 응답 (user는 최대 24000자) | object |
 | `analyzeMemo({text, categories:[{name, examples}]})` | 제목 · 요약 · 핵심 · 태그 · `categoryDecision`(none/existing/new). 입력 6000자, 카테고리 힌트 50개 | `none`이면 `category: ''` |
 | `spellCheck(text)` | 맞춤법 · 띄어쓰기. 앞 6000자만 | `{issues, truncated}` |
-| `tidyMemo(html)` | 구조 다듬기. 사진은 `<img data-ref>`로 바꿔 보내고 복원, 16000자 초과면 거절 | `{html, note}` |
+| `tidyMemo(html, {comment})` | 구조 다듬기. `comment`(최대 500자)가 있으면 내용도 요청대로 변경. 사진은 `<img data-ref>`로 바꿔 보내고 복원, 16000자 초과면 거절 | `{html, note}` |
 | `makeStudySet(text)` | 플래시카드 3~10개, 퀴즈 3~6개. 입력 8000자 | `{cards, quiz}` |
 | `categoryOverview({name, memos})` | 요약 · 핵심 위주, 최대 60개 · 14000자 | `{html, gaps}` |
 | `askNotes({question, memos, history})` | 메모 근거 답변 + 출처. 대화 2턴, 질문 500자 (메모 발췌는 `AskView.pickMemos`에서 1만 자 이하) | `{answer, sources:[memoId]}` |
