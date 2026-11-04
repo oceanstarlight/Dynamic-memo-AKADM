@@ -82,7 +82,7 @@ export default function MemoView({ memoId }) {
   }, [toast]);
 
   const editor = useEditor({
-    extensions: buildExtensions(),
+    extensions: buildExtensions({ tabIndent: () => settingsRef.current.tabIndent !== false }),
     content: '',
     editorProps: {
       attributes: { class: 'prose', spellcheck: 'false' },

@@ -109,6 +109,7 @@ Every automation is on by default, and **each one can be turned off in Settings 
 | `/` | Block menu |
 | `Ctrl/⌘ + K` | Search |
 | `Ctrl/⌘ + S` | Save |
+| `Tab` · `Shift + Tab` | Indent / outdent by 4 spaces (memo body and quick note; changes list level inside lists; can be turned off in Settings) |
 | `Space` · `←` · `→` | Flip card · don't know · know |
 
 ## Getting started

@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   categoryOverview: true, // 카테고리 개요 노트
   todoView: true,        // 할 일 모아보기
   useTrash: true,        // 삭제 시 휴지통으로 (30일 후 영구 삭제)
+  tabIndent: true,       // 메모 본문 · 빠른 메모에서 Tab = 공백 4칸
   theme: 'system',       // system | light | dark
 };
 
@@ -32,6 +33,7 @@ export const FEATURE_LABELS = {
   categoryOverview: ['카테고리 개요', '카테고리 화면에서 안의 메모들을 한 장으로 정리해요.'],
   todoView: ['할 일 모아보기', '여러 메모의 체크박스를 한 화면에 모아 보여줘요.'],
   useTrash: ['휴지통 사용', '삭제한 메모를 30일 동안 보관했다가 지워요. 끄면 바로 삭제돼요.'],
+  tabIndent: ['Tab 들여쓰기', '메모 본문과 빠른 메모에서 Tab은 공백 4칸, Shift+Tab은 내어쓰기예요. 끄면 Tab으로 다음 칸에 이동해요.'],
 };
 
 const KEY = 'dm-settings';
