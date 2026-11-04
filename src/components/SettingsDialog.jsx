@@ -21,10 +21,10 @@ export default function SettingsDialog({ onClose }) {
 
       <section className="settings-sec">
         <h3>자동 기능</h3>
-        <p className="settings-hint">기본은 모두 자동이에요. 끄면 같은 작업을 메모 화면에서 직접 할 수 있어요.</p>
+        <p className="settings-hint">기본은 대부분 자동이에요. 끄면 같은 작업을 메모 화면에서 직접 할 수 있어요.</p>
         {Object.entries(SETTING_LABELS).map(([key, [label, desc]]) => {
           const locked = key === 'autoSave' && isGuest;
-          const dependsOff = (key === 'autoCategorize' || key === 'autoTitle') && !settings.autoAnalyze;
+          const dependsOff = (key === 'autoCategorize' || key === 'autoTitle' || key === 'reclassifyManual') && !settings.autoAnalyze;
           return (
             <label key={key} className={`switch-row${locked || dependsOff ? ' dim' : ''}`}>
               <span>

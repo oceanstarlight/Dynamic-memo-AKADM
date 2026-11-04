@@ -3,6 +3,7 @@ export const DEFAULT_SETTINGS = {
   autoSave: true,        // 작성 중 자동 저장 (게스트는 항상 꺼짐)
   autoAnalyze: true,     // 작성 완료 시 AI 요약/분류 실행
   autoCategorize: true,  // AI가 제안한 카테고리를 바로 적용 (끄면 제안만 보여줌)
+  reclassifyManual: false, // 직접 카테고리를 정한 메모도 AI가 다시 분류 (사용자 요청으로 기본 끔)
   autoTitle: true,       // 제목이 비어 있으면 AI 제목으로 채움
   autoStudy: true,       // 작성 완료 시 학습 카드/퀴즈 자동 생성 (별도 호출)
   // 추가 기능 (필요 없으면 꺼서 화면에서 숨길 수 있다)
@@ -21,6 +22,7 @@ export const SETTING_LABELS = {
   autoSave: ['자동 저장', '작성하는 동안 잠시 멈추면 클라우드에 저장해요.'],
   autoAnalyze: ['완료 시 AI 정리', "'작성 완료'를 누르면 요약 · 핵심 · 태그 · 카테고리를 만들어요."],
   autoCategorize: ['카테고리 자동 배치', '끄면 AI 제안만 보여주고 적용은 직접 해요. 필요하면 새 카테고리도 만들어요.'],
+  reclassifyManual: ['직접 정한 카테고리도 재분류', '켜면 카테고리를 직접 정하거나 바꾼 메모도 작성 완료 때 AI가 다시 분류해요. 끄면 그대로 둬요.'],
   autoTitle: ['제목 자동 생성', '제목을 비워 두면 AI가 붙여 줘요.'],
   autoStudy: ['학습 카드 자동 생성', '완료한 메모로 플래시카드와 퀴즈를 따로 만들어 둬요.'],
 };

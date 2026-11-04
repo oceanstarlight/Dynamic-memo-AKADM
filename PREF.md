@@ -75,7 +75,7 @@
 | `settings`, `updateSettings` | 설정 (localStorage + Firestore `users/{uid}.settings`). 게스트는 `autoSave`가 항상 false |
 | `busy[memoId]` | `'analyze'` · `'study'` 진행 중 표시 |
 | `toast(msg, {tone, action})` | 알림 (`action: {label, href | onClick}`) |
-| `runAnalysis(id, {text,title}, {force, categorize, silent})` | 요약 · 분류. 20자 미만이거나 같은 내용(sourceHash)이면 건너뜀 |
+| `runAnalysis(id, {text,title}, {force, categorize, silent})` | 요약 · 분류. 20자 미만이거나 같은 내용(sourceHash)이면 건너뜀. `categoryManual` 메모는 `reclassifyManual`이 꺼져 있으면 분류 생략(`skipCategory`, 카테고리 힌트도 안 보냄) |
 | `runStudy(id, {text}, {force})` | 학습 카드 (별도 호출). 같은 내용이면 건너뜀 |
 | `ensureCategory(name)` | 이름으로 찾고, 없으면 생성 |
 | `moveMemoToCategory` / `applySuggestedCategory` | 직접 이동(`categoryManual: true`) / AI 제안 적용 |
@@ -139,6 +139,7 @@ users/{uid}/memos/{id}       title, html, text, categoryId, categoryManual, tags
 | `autoSave` | true | 자동 저장 (게스트는 강제로 false) |
 | `autoAnalyze` | true | 작성 완료 시 요약 · 분류 |
 | `autoCategorize` | true | 분류 자동 적용 (끄면 제안만) |
+| `reclassifyManual` | **false** | 직접 정한 카테고리도 AI가 재분류 (사용자 요청으로 기본 끔) |
 | `autoTitle` | true | 빈 제목 자동 채우기 |
 | `autoStudy` | true | 작성 완료 시 학습 카드 |
 | `quickCapture` · `voiceMemo` · `relatedMemos` · `askNotes` · `categoryOverview` · `todoView` · `useTrash` · `tabIndent` | true | 추가 기능 표시 여부 |

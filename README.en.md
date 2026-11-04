@@ -47,7 +47,7 @@ Every automation is on by default, and **each one can be turned off in Settings 
 | | Feature | What it does |
 |---|---|---|
 | ✍️ | **Comfortable editor** | Notion-style `/` blocks, Markdown shortcuts (`#`, `-`, `>`, `**`, `==`), tables, images, highlights, annotations |
-| 🗂️ | **AI categorization** | Prefers your existing categories, creates new ones only when needed, leaves empty notes uncategorized |
+| 🗂️ | **AI categorization** | Prefers your existing categories, creates new ones only when needed, leaves empty notes uncategorized. Notes whose category you set yourself are not re-categorized (changeable in Settings) |
 | 📝 | **Summary & tags** | A 2–3 sentence summary, key points and tags. The summary is editable |
 | 🎓 | **Study cards** | Flashcards and multiple-choice quizzes per note, with review by category |
 | 🎙️ | **Voice memo** | Live speech-to-text that appends to the note |

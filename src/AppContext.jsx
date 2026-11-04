@@ -125,15 +125,24 @@ export function AppProvider({ session, onSignOut, children }) {
     const sourceHash = hashText(text);
     if (!force && memo?.ai?.sourceHash === sourceHash) return memo.ai;
 
+    // 사용자가 직접 카테고리를 정했거나 바꾼 메모는 AI 분류를 하지 않는다 (요약 · 태그 · 제목만).
+    // 설정 '직접 정한 카테고리도 재분류'(기본 끔)를 켰거나, 파일 불러오기처럼 분류를 명시적으로 요청한 경우(categorize: true)는 예외
+    const skipCategory = !!memo?.categoryManual && !effectiveSettings.reclassifyManual && categorize !== true;
+
     setBusyFor(memoId, 'analyze');
     try {
       // 카테고리마다 최근 메모 제목 몇 개를 같이 보내서 기존 카테고리에 잘 들어가게 한다
-      const categoryHints = catsRef.current.map((c) => ({
+      const categoryHints = skipCategory ? [] : catsRef.current.map((c) => ({
         name: c.name,
         examples: memosRef.current.filter((m) => m.categoryId === c.id && m.id !== memoId && m.title).slice(0, 3).map((m) => m.title.slice(0, 30)),
       }));
       const result = await analyzeMemo({ text, categories: categoryHints });
       const { title: aiTitle, ...ai } = result;
+      if (skipCategory) {
+        ai.category = '';
+        ai.isNewCategory = false;
+        ai.categoryReason = '';
+      }
       const match = ai.category && matchExistingCategory(catsRef.current, ai.category);
       if (match) {
         ai.category = match.name;
@@ -148,16 +157,18 @@ export function AppProvider({ session, onSignOut, children }) {
       if (s.autoTitle && !(title || '').trim() && aiTitle) patch.title = aiTitle;
 
       let placedName = null;
-      // 이미 사용자가 직접 카테고리를 정한 메모는 건드리지 않는다
-      if (ai.category && (categorize ?? s.autoCategorize) && !memo?.categoryManual) {
+      if (ai.category && (categorize ?? s.autoCategorize)) {
         const categoryId = await ensureCategory(ai.category, { createdBy: 'ai' });
         patch.categoryId = categoryId;
+        patch.categoryManual = false; // AI가 옮긴 메모는 '직접 정한 메모'가 아니게 된다
         placedName = ai.category;
       }
       await store.patchMemo(memoId, patch);
 
       // silent면 결과 안내는 호출한 쪽(파일 불러오기 창 등)이 한다
-      if (!silent && placedName) {
+      if (!silent && skipCategory) {
+        // 분류하지 않았으므로 분류 안내는 띄우지 않는다
+      } else if (!silent && placedName) {
         toast(`‘${placedName}’에 분류했어요${ai.isNewCategory ? ' · 새 카테고리' : ''}`, {
           action: { label: '열기', href: `/m/${memoId}` },
         });
